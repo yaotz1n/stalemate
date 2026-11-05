@@ -27,9 +27,7 @@ jobs:
           - name: windows
             runner: windows-latest
             args: ""
-            bundles: |
-              src-tauri/target/release/bundle/msi/*.msi
-              src-tauri/target/release/bundle/nsis/*.exe
+            bundles: src-tauri/target/release/bundle/nsis/*.exe
           - name: linux
             runner: ubuntu-22.04
             args: ""
