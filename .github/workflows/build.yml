@@ -71,15 +71,28 @@ jobs:
           releaseName: ${{ github.ref_type == 'tag' && format('Stalemate {0}', github.ref_name) || '' }}
           releaseDraft: true
 
-      # tauri-action always attaches the Mac app as a .app.tar.gz (meant for
-      # auto-updaters, which Stalemate doesn't use). Users only need the .dmg.
-      - name: Remove .app.tar.gz from the release
-        if: matrix.name == 'macos' && github.ref_type == 'tag'
+      # Tidy the release downloads: give each installer a name that says which
+      # OS it's for, and drop the .app.tar.gz tauri-action always attaches for
+      # Mac (meant for auto-updaters, which Stalemate doesn't use).
+      - name: Rename release downloads
+        if: github.ref_type == 'tag'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for asset in $(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name | select(endswith(".app.tar.gz"))'); do
-            gh release delete-asset "$GITHUB_REF_NAME" "$asset" --yes
+          v="${GITHUB_REF_NAME#v}"
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id" | head -1)
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release/assets" --jq '.[] | "\(.id) \(.name)"' | while read -r id name; do
+            case "$name" in
+              *.app.tar.gz) gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"; continue ;;
+              *-setup.exe)  new="Stalemate-$v-Windows-Setup.exe" ;;
+              *.dmg)        new="Stalemate-$v-macOS.dmg" ;;
+              *.AppImage)   new="Stalemate-$v-Linux.AppImage" ;;
+              *.deb)        new="Stalemate-$v-Linux-Debian-Ubuntu.deb" ;;
+              *.rpm)        new="Stalemate-$v-Linux-Fedora.rpm" ;;
+              *) continue ;;
+            esac
+            [ "$name" = "$new" ] || gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$id" -f name="$new" --silent
           done
 
       - uses: actions/upload-artifact@v4
