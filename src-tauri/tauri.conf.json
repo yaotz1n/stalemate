@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Stalemate",
+  "version": "0.1.0",
+  "identifier": "com.stalemate.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Stalemate",
+        "width": 1120,
+        "height": 780,
+        "minWidth": 720,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../data/puzzles.db": "puzzles.db"
+    },
+    "category": "BoardGame",
+    "shortDescription": "Offline chess puzzles",
+    "longDescription": "Stalemate is an offline chess puzzle trainer with over 120,000 rated puzzles from the Lichess database, a Glicko-2 puzzle rating, hints, and Classic and Arcade styles.",
+    "copyright": "Puzzles: Lichess (CC0). Pieces: Colin M.L. Burnett (BSD). Sounds: Kenney (CC0).",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>Stalemate</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <main class="app">
+      <section class="board-area">
+        <div id="board" class="board-host"></div>
+      </section>
+
+      <aside class="panel">
+        <div class="card rating-card">
+          <div class="label">Rating</div>
+          <div class="rating-row">
+            <span id="rating" class="rating">1500</span>
+            <span id="rating-delta" class="delta" hidden></span>
+          </div>
+        </div>
+
+        <div id="status" class="status">
+          <span id="turn-swatch" class="swatch w"></span>
+          <span id="status-text">Loading puzzles…</span>
+        </div>
+
+        <div class="card puzzle-card">
+          <div id="puzzle-themes" class="chips"></div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-hint">Hint</button>
+          <button id="btn-retry" hidden>Retry</button>
+          <button id="btn-next">Next puzzle</button>
+        </div>
+
+        <div id="puzzle-id" class="puzzle-id"></div>
+
+        <footer class="panel-footer">
+          <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.2 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+          </button>
+        </footer>
+      </aside>
+    </main>
+
+    <dialog id="settings">
+      <header>
+        <h2>Settings</h2>
+        <button id="btn-close-settings" class="icon-btn" aria-label="Close">✕</button>
+      </header>
+      <section class="rows">
+        <label>Style <select id="opt-style"></select></label>
+      </section>
+      <section>
+        <h3>Board</h3>
+        <div id="opt-board-theme" class="swatches"></div>
+        <div class="color-pickers">
+          <label><input type="color" id="opt-light" /> Light squares</label>
+          <label><input type="color" id="opt-dark" /> Dark squares</label>
+        </div>
+      </section>
+      <section class="rows">
+        <label>Animation <select id="opt-animation"></select></label>
+        <label><input type="checkbox" id="opt-clickmove" /> Click to move</label>
+        <label><input type="checkbox" id="opt-legal" /> Show legal moves</label>
+        <label><input type="checkbox" id="opt-coords" /> Show coordinates</label>
+        <label><input type="checkbox" id="opt-autonext" /> Go to next puzzle after solving</label>
+        <label><input type="checkbox" id="opt-kingglow" /> Highlight your king's square at start</label>
+      </section>
+      <section class="rows">
+        <h3>Sound</h3>
+        <label><input type="checkbox" id="opt-sound" /> Sound effects</label>
+        <label>Volume <input type="range" id="opt-volume" min="0" max="1" step="0.05" /></label>
+      </section>
+      <section class="rows">
+        <h3>Developer</h3>
+        <label><input type="checkbox" id="opt-devmode" /> Dev mode: move both sides, nothing is scored</label>
+      </section>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,803 @@
+:root {
+  --bg: #1f2124;
+  --panel: #2a2d31;
+  --card: #33373c;
+  --border: #41464c;
+  --text: #e9eaec;
+  --muted: #9aa0a8;
+  --accent: #6aa84f;
+  --accent-text: #ffffff;
+  --good: #6aa84f;
+  --bad: #d64545;
+  --info: #4c8ed9;
+
+  --sq-light: #f0d9b5;
+  --sq-dark: #b58863;
+  --hl-last: rgba(255, 214, 64, 0.42);
+  --hl-selected: rgba(255, 214, 64, 0.6);
+  --hl-dest: rgba(0, 0, 0, 0.22);
+  --hl-hint: rgba(76, 142, 217, 0.85);
+  --arrow: rgba(255, 160, 40, 0.85);
+
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+/* Board and panel form one unit, centered in the window. The board takes the
+   largest square that fits; the panel matches its height and sits right beside it. */
+.app {
+  --pad: 24px;
+  --gap: 20px;
+  --panel-w: 300px;
+  --board: min(calc(100vh - 2 * var(--pad)), calc(100vw - 2 * var(--pad) - var(--gap) - var(--panel-w)));
+  display: flex;
+  gap: var(--gap);
+  padding: var(--pad);
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+/* Snap the board to a multiple of 8px so every square is a whole number of pixels; otherwise
+   the square grid and the highlight/piece layers round differently (gaps, off-square borders). */
+@supports (width: round(down, 100px, 8px)) {
+  .app {
+    --board: round(down, min(calc(100vh - 2 * var(--pad)), calc(100vw - 2 * var(--pad) - var(--gap) - var(--panel-w))), 8px);
+  }
+}
+
+/* ---- board ---- */
+
+.board-area {
+  flex: none;
+  width: var(--board);
+  height: var(--board);
+  container-type: size;
+}
+
+.board-host {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.board {
+  --anim-ms: 200ms;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  touch-action: none;
+}
+
+.board-squares {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template: repeat(8, 1fr) / repeat(8, 1fr);
+}
+
+.square {
+  position: relative;
+}
+.square.light {
+  background: var(--sq-light);
+}
+.square.dark {
+  background: var(--sq-dark);
+}
+
+.coord {
+  position: absolute;
+  font-size: clamp(9px, 1.4cqmin, 13px);
+  font-weight: 700;
+  pointer-events: none;
+}
+.coord.file {
+  right: 4%;
+  bottom: 2%;
+}
+.coord.rank {
+  left: 4%;
+  top: 2%;
+}
+.square.light .coord {
+  color: var(--sq-dark);
+}
+.square.dark .coord {
+  color: var(--sq-light);
+}
+
+.board-glow,
+.board-highlights,
+.board-pieces,
+.board-promo {
+  position: absolute;
+  inset: 0;
+}
+.board-glow,
+.board-highlights {
+  pointer-events: none;
+}
+
+.hl,
+.piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12.5%;
+  height: 12.5%;
+}
+
+.hl.last-move {
+  background: var(--hl-last);
+}
+.hl.selected {
+  background: var(--hl-selected);
+}
+.hl.drag-over {
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.65);
+}
+.hl.check {
+  background: radial-gradient(circle, rgba(255, 30, 30, 0.9) 0%, rgba(230, 20, 20, 0.45) 40%, transparent 72%);
+}
+.hl.dest::after {
+  content: "";
+  position: absolute;
+  inset: 36%;
+  border-radius: 50%;
+  background: var(--hl-dest);
+}
+.hl.dest.capture::after {
+  inset: 4%;
+  background: none;
+  border: 6px solid var(--hl-dest);
+  border-width: max(4px, 0.9cqmin);
+}
+.hl.hint {
+  box-shadow: inset 0 0 0 max(3px, 0.6cqmin) var(--hl-hint);
+  background: rgba(76, 142, 217, 0.25);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    background: rgba(76, 142, 217, 0.45);
+  }
+}
+
+.hl.mark {
+  pointer-events: none;
+  z-index: 5;
+  transition: transform 0s;
+}
+.mark-badge {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 38%;
+  height: 38%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: max(11px, 1.8cqmin);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  animation: pop 220ms ease-out;
+}
+.mark.good .mark-badge {
+  background: var(--good);
+}
+.mark.bad .mark-badge {
+  background: var(--bad);
+}
+@keyframes pop {
+  from {
+    transform: scale(0.2);
+  }
+}
+
+.piece {
+  background-size: 100% 100%;
+  will-change: transform;
+  transition:
+    transform var(--anim-ms) cubic-bezier(0.25, 0.8, 0.35, 1),
+    opacity var(--anim-ms) ease;
+  z-index: 1;
+}
+.piece.moving {
+  z-index: 3;
+}
+.piece.dragging {
+  transition: none;
+  z-index: 10;
+  cursor: grabbing;
+  scale: 1.08;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.35));
+}
+/* Player's king square glows green when the puzzle begins, to show whose move it is. */
+.hl.square-glow {
+  background: rgba(90, 220, 90, 0.45);
+  box-shadow: inset 0 0 max(8px, 1.6cqmin) rgba(60, 200, 60, 0.9);
+  opacity: 0;
+  animation: square-glow 3000ms ease-in-out;
+}
+@keyframes square-glow {
+  25% {
+    opacity: 1;
+  }
+}
+
+/* Checkmated king tips over: falls with gravity, bounces once, settles. */
+@property --tilt {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.piece.fallen {
+  --tilt: 90deg;
+  transition: none;
+  animation: king-fall 700ms forwards;
+}
+@keyframes king-fall {
+  0% {
+    --tilt: 0deg;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  65% {
+    --tilt: 90deg;
+    animation-timing-function: ease-out;
+  }
+  80% {
+    --tilt: 78deg;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    --tilt: 90deg;
+  }
+}
+.no-motion .piece.fallen {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .piece.fallen {
+    animation: none;
+  }
+}
+.piece.no-anim {
+  transition: none;
+}
+.piece.captured,
+.piece.appearing {
+  opacity: 0;
+}
+.board.interactive {
+  cursor: pointer;
+}
+
+.board-arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+}
+.board-arrows .arrow {
+  stroke: var(--arrow);
+}
+.board-arrows .arrow-head {
+  fill: var(--arrow);
+}
+
+.board-promo {
+  display: none;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.45);
+}
+.board-promo.open {
+  display: block;
+}
+.promo-choice {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  border: none;
+  border-radius: 50%;
+  background-color: #f2f2f2;
+  background-size: 82%;
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  transition: background-color 0.15s, border-radius 0.15s;
+}
+.promo-choice:hover {
+  background-color: #ffd65c;
+  border-radius: 8%;
+}
+
+/* ---- panel ---- */
+
+.panel {
+  flex: none;
+  width: var(--panel-w);
+  height: var(--board);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel-footer {
+  margin-top: auto; /* pinned to the board's bottom edge */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.puzzle-id {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  user-select: text;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rating-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 2px;
+}
+.rating {
+  font-size: 38px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.delta {
+  font-weight: 700;
+  font-size: 17px;
+}
+.delta.up {
+  color: var(--good);
+}
+.delta.down {
+  color: var(--bad);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--card);
+  font-weight: 600;
+  min-height: 56px;
+  border-left: 5px solid var(--border);
+  transition: border-color 0.2s, background 0.2s;
+}
+.status.turn {
+  border-left-color: var(--muted);
+}
+.status.good {
+  border-left-color: var(--good);
+  background: color-mix(in srgb, var(--good) 18%, var(--card));
+}
+.status.wrong {
+  border-left-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 18%, var(--card));
+}
+.status.info {
+  border-left-color: var(--info);
+}
+/* King of the side to move, drawn with the board's piece set. */
+.swatch {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -4px 0;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+/* The black king's outline vanishes on the dark bar; a faint light edge restores its shape. */
+.swatch.b {
+  filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
+}
+
+/* Theme tags appear once the puzzle is over; hide the empty card until then. */
+.puzzle-card:has(.chips:empty) {
+  display: none;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  background: var(--card);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.actions button,
+dialog button:not(.icon-btn) {
+  padding: 11px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--card) 80%, #fff);
+}
+.actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.actions button.primary:hover {
+  background: color-mix(in srgb, var(--accent) 85%, #fff);
+}
+
+dialog .rows label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  max-width: 200px;
+}
+
+.keys {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin: 0;
+}
+kbd {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+}
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--card);
+}
+
+/* ---- settings ---- */
+
+dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 22px 18px;
+  width: min(440px, calc(100vw - 32px));
+}
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+/* Editing square colors: sit over the side panel, no dimming (positions set in main.ts). */
+dialog.docked {
+  position: fixed;
+  margin: 0;
+  left: var(--dock-left);
+  top: var(--dock-top);
+  width: var(--dock-width);
+  max-height: var(--dock-height);
+  overflow-y: auto;
+}
+dialog.docked::backdrop {
+  background: transparent;
+}
+dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+dialog h2 {
+  font-size: 18px;
+}
+dialog h3 {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 16px 0 8px;
+}
+dialog .rows {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+dialog .rows label {
+  font-size: 14px;
+  color: var(--text);
+  justify-content: flex-start;
+}
+dialog .rows label:has(select),
+dialog .rows label:has(input[type="range"]) {
+  justify-content: space-between;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.theme-swatch {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  border: 3px solid transparent;
+  cursor: pointer;
+  background-size: 100% 100%;
+}
+.theme-swatch[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.color-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 12px;
+}
+.color-pickers label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.color-pickers input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+
+/* ================================================================
+   Arcade style (.board.arcade). Classic never sees any of this:
+   it draws pieces on .piece itself and keeps .pi hidden.
+   ================================================================ */
+
+.pi {
+  display: none;
+}
+.board.arcade {
+  transition: box-shadow 300ms ease;
+}
+.board.arcade .piece {
+  background-image: none !important;
+}
+.board.arcade .pi {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background-image: var(--img);
+  background-size: 100% 100%;
+  transform-origin: 50% 88%;
+  transition:
+    scale 140ms ease-out,
+    translate 140ms ease-out,
+    filter 140ms ease-out;
+}
+
+/* Lift: a picked-up piece rises off the board and casts a shadow. */
+.board.arcade .piece.lifted {
+  z-index: 4;
+}
+.board.arcade .piece.lifted .pi {
+  scale: 1.14;
+  translate: 0 -6%;
+  filter: drop-shadow(0 10px 6px rgba(0, 0, 0, 0.35));
+}
+.board.arcade .piece.dragging {
+  scale: none;
+  filter: none;
+}
+.board.arcade .piece.dragging .pi {
+  scale: 1.18;
+  translate: 0 -8%;
+  filter: drop-shadow(0 16px 8px rgba(0, 0, 0, 0.32));
+  transition: none;
+}
+
+/* Arc: pieces rise mid-flight; knights hop higher with a little tilt. */
+.board.arcade .pi.hop {
+  animation: hop var(--anim-ms) ease-in-out;
+}
+.board.arcade .pi.hop-knight {
+  animation: hop-knight var(--anim-ms) ease-in-out;
+}
+@keyframes hop {
+  50% {
+    translate: 0 -14%;
+    scale: 1.1;
+    filter: drop-shadow(0 12px 6px rgba(0, 0, 0, 0.3));
+  }
+}
+@keyframes hop-knight {
+  50% {
+    translate: 0 -40%;
+    scale: 1.16;
+    rotate: -10deg;
+    filter: drop-shadow(0 24px 8px rgba(0, 0, 0, 0.26));
+  }
+}
+
+/* Land: a quick squash and spring back. */
+.board.arcade .pi.land {
+  animation: land 240ms ease-out;
+}
+@keyframes land {
+  0% {
+    scale: 1.12 0.86;
+    translate: 0 3%;
+  }
+  45% {
+    scale: 0.95 1.06;
+    translate: 0 -2%;
+  }
+  100% {
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+/* Build: tiles and pieces pop in ring by ring from the kings (delay in --d). */
+.board.arcade.building {
+  box-shadow: none;
+}
+.board.arcade.building .square {
+  animation: tile-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.board.arcade.building .pi {
+  animation: piece-in 340ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--d, 0ms) + 60ms);
+}
+@keyframes tile-in {
+  from {
+    scale: 0.2;
+    rotate: -12deg;
+    opacity: 0;
+  }
+}
+@keyframes piece-in {
+  from {
+    scale: 0;
+    translate: 0 -30%;
+    opacity: 0;
+  }
+}
+
+/* Crumble: on checkmate every tile but the king's falls away (--d, --fx, --fy, --fr). */
+.board.arcade.crumbling {
+  overflow: visible;
+  box-shadow: none;
+}
+.board.arcade.crumbling .board-highlights,
+.board.arcade.crumbling .board-glow,
+.board.arcade.crumbling .board-arrows,
+.board.arcade.crumbling .mark {
+  opacity: 0;
+  transition: opacity 250ms;
+}
+.board.arcade .square.falling,
+.board.arcade .piece.falling .pi {
+  animation: tile-fall 800ms cubic-bezier(0.5, 0, 0.9, 0.4) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes tile-fall {
+  0% {
+    translate: 0 0;
+    rotate: 0deg;
+    opacity: 1;
+  }
+  15% {
+    translate: 0 -4%;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    translate: var(--fx) var(--fy);
+    rotate: var(--fr);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .app {
+    flex-direction: column;
+    height: auto;
+    padding: 16px;
+  }
+  .board-area {
+    width: 100%;
+    height: auto;
+    container-type: inline-size;
+  }
+  .panel {
+    width: 100%;
+    height: auto;
+  }
+  .panel-footer {
+    margin-top: 0;
+  }
+}

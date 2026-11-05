@@ -1,0 +1,19 @@
+Arcade sound effects by Kenney (www.kenney.nl), from the packs
+"Impact Sounds", "Interface Sounds" and "Casino Audio".
+License: Creative Commons Zero (CC0) - http://creativecommons.org/publicdomain/zero/1.0/
+Free for personal and commercial use; credit is appreciated but not required.
+
+Converted from .ogg to mono 16-bit .wav, silence trimmed and peak-normalized.
+
+move-1..5       impactWood_light_000..004
+capture-1..3    impactWood_medium_000, 001, 003
+capture-slide   card-slide-1
+pickup          chips-handle-3
+wrong           impactSoft_heavy_000
+chime           glass_002
+tick            tick_002
+solved          user-supplied solved.mp3 (converted to .wav; not part of the Kenney packs)
+hint            user-supplied hint.wav (leading silence trimmed; not part of the Kenney packs)
+build           select_001
+thud            impactWood_heavy_001
+crumble-1..4    impactPlank_medium_000, 001, 003, 004
