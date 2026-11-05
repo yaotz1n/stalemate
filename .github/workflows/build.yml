@@ -71,6 +71,17 @@ jobs:
           releaseName: ${{ github.ref_type == 'tag' && format('Stalemate {0}', github.ref_name) || '' }}
           releaseDraft: true
 
+      # tauri-action always attaches the Mac app as a .app.tar.gz (meant for
+      # auto-updaters, which Stalemate doesn't use). Users only need the .dmg.
+      - name: Remove .app.tar.gz from the release
+        if: matrix.name == 'macos' && github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for asset in $(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name | select(endswith(".app.tar.gz"))'); do
+            gh release delete-asset "$GITHUB_REF_NAME" "$asset" --yes
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: stalemate-${{ matrix.name }}
