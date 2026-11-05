@@ -2,18 +2,9 @@
 
 Offline chess puzzles for Windows, macOS and Linux, built with Tauri 2 (Rust) and TypeScript.
 
-## Running
+![Stalemate showing a puzzle: find the best move for White](docs/screenshot.png)
 
-```bash
-npm install
-npm run tauri dev      # native app with the real puzzle database
-npm run dev            # UI only, in a browser at http://localhost:1420, using ~24 sample puzzles
-npm run tauri build    # release installer for the current OS
-```
-
-Prerequisites: Node.js, Rust (via rustup), and the [Tauri system dependencies](https://tauri.app/start/prerequisites/)
-(WebView2 on Windows, which ships with Windows 10/11; `webkit2gtk` and friends on Linux; Xcode command line tools on macOS).
-Each installer has to be built on its own OS; CI such as `tauri-action` on GitHub can build all three.
+**[Download Stalemate](https://github.com/yaotz1n/stalemate/releases/latest)** for Windows, macOS or Linux.
 
 ## Puzzle data
 
