@@ -26,3 +26,6 @@ dist-ssr
 # Puzzle source download (rebuild data/puzzles.db with tools/build_puzzle_db.py)
 data/raw/
 data/*.tmp
+
+# Downloaded build outputs
+installers/
