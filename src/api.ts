@@ -3,6 +3,7 @@
 // can be worked on without building the native app.
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { previewBotMove, previewJudge } from "./previewBot";
 import { SAMPLE_PUZZLES } from "./samplePuzzles";
 
 export interface Puzzle {
@@ -28,6 +29,16 @@ export interface AttemptResult {
   ratingAfter: number;
 }
 
+/** A position analysed by Stockfish. */
+export interface PositionEval {
+  /** Centipawns for the side to move (mates near ±30000). */
+  score: number;
+  /** The best move (UCI), or null with no legal moves. */
+  best: string | null;
+  /** The second-best move's score (same view); null with only one legal move (or unknown). */
+  second?: number | null;
+}
+
 export interface ThemeCount {
   name: string;
   count: number;
@@ -41,6 +52,12 @@ export interface Api {
   listThemes(): Promise<ThemeCount[]>;
   getSettings(): Promise<Record<string, string>>;
   setSetting(key: string, value: string): Promise<void>;
+  /** The bot's reply (UCI) after `moves` from `fen` at `level` 1-5; null if the game is over. */
+  botMove(fen: string, moves: string[], level: number): Promise<string | null>;
+  /** [best, mv] scores (centipawns, side to move) for `mv` after `moves` from `fen`; null if unknown. */
+  judgeMove(fen: string, moves: string[], mv: string, ms?: number): Promise<[number, number] | null>;
+  /** Stockfish on the position after `moves` from `fen`: score (side to move) and best move. Rejects without Stockfish. */
+  analysePosition(fen: string, moves: string[], ms?: number): Promise<PositionEval>;
 }
 
 const tauriApi: Api = {
@@ -51,6 +68,9 @@ const tauriApi: Api = {
   listThemes: () => invoke("list_themes"),
   getSettings: () => invoke("get_settings"),
   setSetting: (key, value) => invoke("set_setting", { key, value }),
+  botMove: (fen, moves, level) => invoke("bot_move", { fen, moves, level }),
+  judgeMove: (fen, moves, mv, ms) => invoke("judge_move", { fen, moves, mv, ms: ms ?? null }),
+  analysePosition: (fen, moves, ms) => invoke("analyse_position", { fen, moves, ms: ms ?? null }),
 };
 
 function createMockApi(): Api {
@@ -103,6 +123,16 @@ function createMockApi(): Api {
     },
     async getSettings() {
       return { ...settings };
+    },
+    async botMove(fen, moves, level) {
+      return previewBotMove(fen, moves, level);
+    },
+    // No engine in the browser: a rough material-only judge.
+    async judgeMove(fen, moves, mv) {
+      return previewJudge(fen, moves, mv);
+    },
+    async analysePosition() {
+      throw new Error("no Stockfish in the browser preview");
     },
     async setSetting(key, value) {
       settings[key] = value;

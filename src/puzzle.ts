@@ -8,6 +8,7 @@ import { api, type AttemptResult, type Puzzle } from "./api";
 import type { Board, Position, Square } from "./board";
 import type { PieceColor, PieceType } from "./pieces";
 import type { Sounds } from "./sounds";
+import { moveLabel, sacrificeCandidate, tacticDetails, withSacrifice, type Tactic, type TacticDetail, type TacticLogEntry } from "./tactics";
 
 export type Status =
   | "intro" // opponent's setup move is about to play
@@ -27,8 +28,10 @@ export interface SessionState {
   /** Solved without mistakes or hints. */
   clean: boolean;
   done: boolean;
-  /** The position is checkmate (the arcade board crumbles). */
+  /** The position is checkmate (with Fancy animation the board crumbles). */
   mate: boolean;
+  /** The player's correct moves so far that set up tactics, oldest first (empty with the setting off). */
+  tacticLog: TacticLogEntry[];
 }
 
 /** Saved progress through a puzzle, so it can be resumed after the app restarts. */
@@ -46,12 +49,19 @@ export interface Snapshot {
 
 export interface SessionHooks {
   onChange(state: SessionState): void;
-  onResult(result: AttemptResult): void;
+  /** A rated (first) attempt was recorded. `solved` excludes hints and mistakes; `hinted` = a hint was used. */
+  onResult(result: AttemptResult, attempt: { solved: boolean; hinted: boolean; puzzle: Puzzle }): void;
+  /** The player earned tactic badges on a correct move (not in dev mode). */
+  onTactics(kinds: Tactic[]): void;
   timing(): { animMs: number };
   /** Whether to glow the player's king square when the puzzle begins. */
   kingGlow(): boolean;
   /** A solved puzzle's ending (last move, king fall, board crumble) has finished playing. */
   onFinished(): void;
+  /** Whether to badge the player's forks, pins and skewers. */
+  tactics(): boolean;
+  /** Whether to badge the opponent's too (yellow). */
+  enemyTactics(): boolean;
 }
 
 export class PuzzleSession {
@@ -91,6 +101,7 @@ export class PuzzleSession {
     this.board.setMovable(null);
     this.board.setOrientation(this.playerColor);
     this.board.setArrow(null);
+    this.board.setTactics(null);
     this.board.setHighlights({});
 
     if (resume && resume.ply % 2 === 1 && resume.ply < this.solution.length) {
@@ -124,7 +135,7 @@ export class PuzzleSession {
     });
   }
 
-  /** Arcade: builds the board outward from both kings. Returns its duration (0 in Classic). */
+  /** Fancy animation: builds the board outward from both kings. Returns its duration (0 otherwise). */
   private buildBoard() {
     const kings = [...this.chess.findPiece({ type: "k", color: "w" }), ...this.chess.findPiece({ type: "k", color: "b" })];
     const { ms, rings, stepMs } = this.board.build(kings);
@@ -147,6 +158,40 @@ export class PuzzleSession {
       clean: this.mistakes === 0 && !this.usedHint && !this.viewedSolution,
       done: this.status === "solved" || this.status === "solution",
       mate: this.chess.isCheckmate(),
+      tacticLog: this.tacticLog(),
+    };
+  }
+
+  /** Tactics of the player's moves on the solution path (a wrong move about to be taken back doesn't count). */
+  private tacticLog(): TacticLogEntry[] {
+    if (!this.hooks.tactics()) return [];
+    return this.chess
+      .history({ verbose: true })
+      .slice(0, this.ply)
+      .flatMap((m, i, history) => {
+        if (m.color !== this.playerColor) return [];
+        const details = playerDetails(new Chess(m.after), m, history.slice(0, i));
+        return details.length ? [{ ply: i + 1, label: moveLabel(m), details }] : [];
+      });
+  }
+
+  /** Everything about the puzzle, for the dev "Copy game state" button. */
+  debugState() {
+    const history = this.chess.history({ verbose: true });
+    return {
+      puzzle: this.puzzle,
+      fen: this.chess.fen(),
+      moves: this.chess.pgn().replace(/^\[.*\]\n/gm, "").trim(),
+      playerColor: this.playerColor,
+      solution: this.solution,
+      ply: this.ply,
+      status: this.status,
+      mistakes: this.mistakes,
+      usedHint: this.usedHint,
+      sandbox: this.dev,
+      tacticsByMove: history.flatMap((m, i) =>
+        m.color === this.playerColor ? [{ ply: i + 1, san: m.san, tactics: tacticDetails(new Chess(m.after), m, history.slice(0, i)) }] : [],
+      ),
     };
   }
 
@@ -193,6 +238,10 @@ export class PuzzleSession {
     this.ply++;
     this.hintLevel = 0; // hints are per move
     this.board.setHighlights({ ...this.baseHighlights(move), mark: { square: to, kind: "good" } });
+    const details = this.hooks.tactics() ? playerDetails(this.chess, move, this.chess.history({ verbose: true }).slice(0, -1)) : [];
+    this.board.setTactics(details.length ? to : null, details, landing * 1000);
+    // Counted once per puzzle: not again on a retry (already reported).
+    if (details.length && !this.reported) this.hooks.onTactics([...new Set(details.map((d) => d.kind))]);
     if (this.ply >= this.solution.length || this.chess.isGameOver()) {
       this.finish("solved", landing);
       return;
@@ -262,8 +311,16 @@ export class PuzzleSession {
   private playSolutionMove() {
     const uci = this.solution[this.ply++];
     const move = this.chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    const reply = move.color !== this.playerColor;
+    const landMs = this.board.travelMs(move.to);
+    if (reply) this.board.setTactics(null); // the player's badges last until the reply
     this.show(move, true);
     this.board.setHighlights(this.baseHighlights(move));
+    // With the setting on, the opponent's tactics get (yellow) badges too.
+    if (reply && this.hooks.enemyTactics()) {
+      const details = tacticDetails(this.chess, move, this.chess.history({ verbose: true }).slice(0, -1));
+      if (details.length) this.board.setTactics(move.to, details, landMs, true);
+    }
   }
 
   private finish(status: "solved", delay = 0) {
@@ -279,7 +336,7 @@ export class PuzzleSession {
   }
 
   private show(move: Move, animate: boolean) {
-    // Arcade sounds land with the piece; Classic plays them right away (it ignores delay).
+    // Sounds land with the piece (right away when animation is off).
     const opts = { piece: move.piece, delay: animate ? this.board.travelMs(move.to) / 1000 : 0 };
     this.board.setPosition(position(this.chess), { animate, lastMove: [move.from, move.to] });
     if (this.chess.isCheckmate()) {
@@ -287,13 +344,13 @@ export class PuzzleSession {
       this.later(animate ? this.hooks.timing().animMs + 60 : 0, () => {
         this.board.setFallen(king);
         this.sounds.play("thud", { delay: 0.45 }); // the fall hits the board ~65% through
-        // Arcade: once the king is down, the board falls apart around it.
+        // Fancy animation: once the king is down, the board falls apart around it.
         this.later(600, () => {
           const { ms, rings, stepMs } = this.board.crumble(king);
           for (let ring = 1; ring <= rings; ring++) {
             this.sounds.play("crumble", { delay: (ring * stepMs + 250) / 1000 });
           }
-          this.later(ms || 100, () => this.finished()); // Classic: the 700ms fall is done
+          this.later(ms || 100, () => this.finished()); // not Fancy: no crumble, just finish
         });
       });
     }
@@ -367,7 +424,7 @@ export class PuzzleSession {
     this.reported = true;
     api
       .recordAttempt(this.puzzle.id, solved, this.usedHint)
-      .then((r) => this.hooks.onResult(r))
+      .then((r) => this.hooks.onResult(r, { solved, hinted: this.usedHint, puzzle: this.puzzle }))
       .catch((e) => console.error("recordAttempt failed", e));
   }
 
@@ -401,3 +458,12 @@ function position(chess: Chess): Position {
   return pos;
 }
 
+
+/**
+ * Tactics of a correct move of the player's. Solution moves are sound, so one
+ * that gives up material is a sacrifice without asking the engine.
+ */
+function playerDetails(chess: Chess, move: Move, before: Move[]): TacticDetail[] {
+  const details = tacticDetails(chess, move, before);
+  return sacrificeCandidate(chess, move) ? withSacrifice(details, move) : details;
+}

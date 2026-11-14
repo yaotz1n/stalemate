@@ -3,6 +3,8 @@
 // rules; the caller supplies which moves are legal via setMovable().
 
 import type { PieceColor, PieceSet, PieceType } from "./pieces";
+import { QUALITY_NAME, QUALITY_SYMBOL, type Quality } from "./quality";
+import type { Tactic, TacticDetail } from "./tactics";
 
 export type Square = string; // "e4"
 /** square -> piece code, e.g. "wq" */
@@ -16,6 +18,53 @@ export interface Highlights {
   mark?: { square: Square; kind: MarkKind };
 }
 
+export type TacticKind = Tactic;
+
+/** Icons for tactic badges (24x24, drawn in white on a colored disc). */
+export const TACTIC_ICONS: Record<TacticKind, string> = {
+  // A fork in the road: one path splitting into two arrows.
+  fork:
+    '<path d="M12 21v-7.5L6.5 8M12 13.5 17.5 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 4.5h6.5L3.5 11zM20.5 4.5H14l6.5 6.5z" fill="currentColor"/>',
+  // A push pin.
+  pin: '<path d="M14.5 2.5 21.5 9.5l-1.8.6-3.3 3.3.4 4.3-1.9 1.9-4-4-5.4 5.4-1.2-1.2 5.4-5.4-4-4 1.9-1.9 4.3.4 3.3-3.3z" fill="currentColor"/>',
+  // An eye: something revealed.
+  discovered:
+    '<path d="M12 5C6.6 5 2.8 9 1.5 12c1.3 3 5.1 7 10.5 7s9.2-4 10.5-7C21.2 9 17.4 5 12 5zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" fill="currentColor"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/>',
+  // Two plus signs: two checks at once.
+  "double-check":
+    '<path d="M6 3.5h2.4v3.6H12v2.4H8.4v3.6H6V9.5H2.4V7.1H6zM15.6 10.9H18v3.6h3.6v2.4H18v3.6h-2.4v-3.6H12v-2.4h3.6z" fill="currentColor"/>',
+  // A crosshair: the king is in the sights.
+  "mate-threat":
+    '<circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1.8v4.4M12 17.8v4.4M1.8 12h4.4M17.8 12h4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/>',
+  // A gift box.
+  "free-piece":
+    '<path d="M3.5 9.5h7.7V13H3.5zM12.8 9.5h7.7V13h-7.7zM5 13h6.2v7.5H5zM12.8 13H19v7.5h-6.2z" fill="currentColor"/><path d="M12 9.3C10.5 6 7.2 5.3 7 7.4c-.2 2 3 2.1 5 1.9zm0 0c1.5-3.3 4.8-4 5-1.9.2 2-3 2.1-5 1.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  // A battery with charge bars.
+  battery:
+    '<rect x="3" y="7" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="19.5" y="10" width="2" height="4" rx=".6" fill="currentColor"/><rect x="5.5" y="9.5" width="3" height="5" rx=".5" fill="currentColor"/><rect x="9.5" y="9.5" width="3" height="5" rx=".5" fill="currentColor"/><rect x="13.5" y="9.5" width="3" height="5" rx=".5" fill="currentColor"/>',
+  // Cage bars.
+  trapped:
+    '<path d="M5 5.5h14M5 19.5h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7.5 5.5v14M12 5.5v14M16.5 5.5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // An upside-down dagger.
+  sacrifice:
+    '<g transform="rotate(180 12 12)"><path d="M12 2.2 14 6v8.4h-4V6z" fill="currentColor"/><path d="M7 14.4h10v2H7z" fill="currentColor"/><path d="M11 16.4h2v3.6h-2z" fill="currentColor"/><circle cx="12" cy="21.2" r="1.4" fill="currentColor"/></g>',
+  // A skewer through two beads.
+  skewer:
+    '<path d="M2.6 20 20 2.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8.5" cy="14" r="3.3" fill="currentColor"/><circle cx="14.5" cy="8" r="3.3" fill="currentColor"/>',
+};
+export const TACTIC_NAMES: Record<TacticKind, string> = {
+  fork: "Fork",
+  pin: "Pin",
+  skewer: "Skewer",
+  discovered: "Discovered attack",
+  "double-check": "Double check",
+  "mate-threat": "Mate threat",
+  "free-piece": "Free piece",
+  battery: "Battery",
+  trapped: "Trapped piece",
+  sacrifice: "Sacrifice",
+};
+
 export type MoveHandler = (from: Square, to: Square, promotion?: PieceType) => void;
 
 const FILES = "abcdefgh";
@@ -28,6 +77,12 @@ export class Board {
   private highlightLayer: HTMLElement;
   private piecesLayer: HTMLElement;
   private arrowLayer: SVGSVGElement;
+  /** Arrows explaining the shown tactic badges (see renderTactics). */
+  private tacticArrowLayer: SVGGElement;
+  /** The hint arrow (setArrow). */
+  private hintArrowLayer: SVGGElement;
+  /** Whether to draw arrows for tactics. */
+  private tacticArrows = true;
   private promoLayer: HTMLElement;
 
   private position: Position = new Map();
@@ -39,8 +94,17 @@ export class Board {
   private showCoords = true;
   /** Click a piece, then a square, to move. Dragging always works. */
   private clickToMove = true;
-  /** Arcade style: pieces lift, hop and land, and the board builds and crumbles. */
+  /** Arcade effects (off when animation is Off): pieces lift, hop and land, and the board builds and crumbles. */
   private arcade = false;
+  /** Tint the last-move highlight with the color of that move's tactic badge. */
+  private tacticHighlight = false;
+  /** The tint fades in with the badge the first time it's drawn, then just stays. */
+  private tintPending = false;
+  /** A flipTo() in progress (the board's spin and each piece's counter-spin). */
+  private flipAnims: Animation[] = [];
+  private flipDone: (() => void) | null = null;
+  /** Fancy animation: moving pieces arc (knights hop) and squash as they land, and the board builds and crumbles. */
+  private fancy = false;
   /** Called when the player picks up (selects or starts dragging) a piece. */
   onPickup: ((code: string) => void) | null = null;
 
@@ -49,6 +113,19 @@ export class Board {
   private dests = new Map<Square, Square[]>();
   private selected: Square | null = null;
   private highlights: Highlights = {};
+  /** Tactic badges on one piece (`enemy`: the opponent's, shown in yellow); dropped once that piece leaves its square. */
+  private tactic: {
+    square: Square;
+    code: string;
+    kinds: TacticKind[];
+    details: TacticDetail[];
+    delayMs: number;
+    enemy: boolean;
+    /** The move's quality badge (in the corner of the row); null for none. */
+    quality: Quality | null;
+    /** For a mistake or blunder: the move that would have been best, drawn as a green arrow. */
+    betterMove: [Square, Square] | null;
+  } | null = null;
   private drag: { from: Square; el: HTMLElement; startX: number; startY: number; active: boolean; wasSelected: boolean } | null = null;
   private dropped: Square | null = null;
 
@@ -62,6 +139,9 @@ export class Board {
     this.arrowLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.arrowLayer.classList.add("board-arrows");
     this.arrowLayer.setAttribute("viewBox", "0 0 800 800");
+    this.tacticArrowLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    this.hintArrowLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    this.arrowLayer.append(this.tacticArrowLayer, this.hintArrowLayer);
     this.promoLayer = el("div", "board-promo");
     this.root.append(
       this.squaresLayer,
@@ -89,14 +169,60 @@ export class Board {
   }
 
   setOrientation(color: PieceColor) {
+    this.flipDone?.(); // finish a flip in progress first
     if (color === this.orientation) return;
     this.orientation = color;
     this.drawSquares();
     for (const [sq, node] of this.els) this.place(node, sq);
     this.renderHighlights();
+    this.renderTactics();
   }
 
-  setOptions(opts: { animMs?: number; showLegal?: boolean; showCoords?: boolean; clickToMove?: boolean; arcade?: boolean }) {
+  /**
+   * Turns the board to `color`'s side with a half spin (pieces stay upright),
+   * instead of the pieces sliding across. Instant with animation off.
+   */
+  flipTo(color: PieceColor) {
+    this.flipDone?.(); // jump to the end of a flip still in progress
+    if (color === this.orientation) return;
+    if (this.animMs === 0) {
+      this.setOrientation(color);
+      return;
+    }
+    const timing: KeyframeAnimationOptions = { duration: 520, easing: "cubic-bezier(0.65, 0, 0.35, 1)", fill: "forwards" };
+    const spin = this.root.animate([{ rotate: "0deg" }, { rotate: "180deg" }], timing);
+    // Pieces turn the other way around their own centers, so they stay upright on their squares while the board
+    // turns. (The rotation goes after the piece's translate; the separate `rotate` property would come before it
+    // and swing pieces around the board's corner.)
+    this.flipAnims = [
+      spin,
+      ...[...this.els].map(([sq, n]) => {
+        const [col, row] = this.coords(sq);
+        const at = `translate(${col * 100}%, ${row * 100}%)`;
+        return n.animate([{ transform: `${at} rotate(0deg)` }, { transform: `${at} rotate(-180deg)` }], timing);
+      }),
+    ];
+    this.flipDone = () => {
+      // The spun board now looks exactly like the other side's view: switch to it without any movement.
+      this.flipDone = null;
+      for (const node of this.els.values()) this.withoutTransition(node);
+      this.setOrientation(color);
+      this.flipAnims.forEach((a) => a.cancel());
+      this.flipAnims = [];
+    };
+    spin.onfinish = () => this.flipDone?.();
+  }
+
+  setOptions(opts: { animMs?: number; showLegal?: boolean; showCoords?: boolean; clickToMove?: boolean; arcade?: boolean; fancy?: boolean; tacticHighlight?: boolean; tacticArrows?: boolean }) {
+    if (opts.tacticArrows !== undefined && opts.tacticArrows !== this.tacticArrows) {
+      this.tacticArrows = opts.tacticArrows;
+      this.renderTactics();
+    }
+    if (opts.tacticHighlight !== undefined) this.tacticHighlight = opts.tacticHighlight;
+    if (opts.fancy !== undefined) {
+      this.fancy = opts.fancy;
+      this.root.classList.toggle("fancy", opts.fancy);
+    }
     if (opts.arcade !== undefined) {
       this.arcade = opts.arcade;
       this.root.classList.toggle("arcade", opts.arcade);
@@ -128,10 +254,140 @@ export class Board {
     this.renderHighlights();
   }
 
+  /**
+   * Shows tactic badges (fork, pin, skewer) on the piece on `square`, popping in
+   * after `delayMs` (e.g. once the move lands). They stay until that piece moves
+   * or is captured, or until this is called again; pass null to clear.
+   */
+  setTactics(
+    square: Square | null,
+    details: TacticDetail[] = [],
+    delayMs = 0,
+    enemy = false,
+    quality: Quality | null = null,
+    betterMove: [Square, Square] | null = null,
+  ) {
+    const code = square ? this.position.get(square) : undefined;
+    const kinds = [...new Set(details.map((d) => d.kind))];
+    this.tactic = square && code && (kinds.length || quality) ? { square, code, kinds, details, delayMs, enemy, quality, betterMove } : null;
+    this.tintPending = !!this.tactic;
+    this.renderTactics();
+    this.renderHighlights();
+  }
+
+  private renderTactics() {
+    this.piecesLayer.querySelectorAll(".tactic").forEach((n) => n.remove());
+    this.tacticArrowLayer.innerHTML = "";
+    const t = this.tactic;
+    if (!t) return;
+    // Arrows in each tactic's color (yellow for the opponent's) showing who attacks what,
+    // and a green one for the better move after a mistake or blunder.
+    if (this.tacticArrows || t.betterMove) {
+      const shown = new Set(this.tacticArrows ? t.kinds : []);
+      const seen = new Set<string>();
+      const arrows: { from: Square; to: Square; cls: string }[] = [];
+      for (const d of t.details) {
+        if (!shown.has(d.kind)) continue;
+        for (const [from, to] of d.arrows) {
+          const cls = `tactic-arrow ${t.enemy ? "enemy" : d.kind}`;
+          if (from === to || seen.has(from + to + cls)) continue;
+          seen.add(from + to + cls);
+          arrows.push({ from, to, cls });
+        }
+      }
+      // What should have been played, after a mistake or blunder (drawn even with tactic arrows off: see below).
+      if (t.betterMove) arrows.push({ from: t.betterMove[0], to: t.betterMove[1], cls: "tactic-arrow better-move" });
+      const shifts = this.sideBySide(arrows);
+      this.tacticArrowLayer.innerHTML = arrows.map((a, i) => this.arrowSvg(a.from, a.to, 12, 28, 18, a.cls, shifts[i])).join("");
+      this.tacticArrowLayer.querySelectorAll<SVGGElement>(".tactic-arrow").forEach((g) => (g.style.animationDelay = `${t.delayMs}ms`));
+    }
+    const node = this.squareDiv(t.square, t.enemy ? "tactic enemy" : "tactic");
+    // Side by side, popping in left to right; the move's quality badge takes the
+    // corner, then the most striking tactic (first in `kinds`) next to it.
+    const n = t.kinds.length + (t.quality ? 1 : 0);
+    [...t.kinds].reverse().forEach((kind, i) => {
+      const badge = el("span", `tactic-badge ${kind}`);
+      badge.style.setProperty("--i", String(i));
+      badge.style.setProperty("--n", String(n));
+      badge.style.zIndex = String(i);
+      badge.style.animationDelay = `${t.delayMs + i * 90}ms`;
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", TACTIC_NAMES[kind]);
+      badge.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TACTIC_ICONS[kind]}</svg>`;
+      node.append(badge);
+    });
+    if (t.quality) {
+      const i = n - 1;
+      const badge = el("span", `tactic-badge quality-badge ${t.quality}`, QUALITY_SYMBOL[t.quality]);
+      badge.style.setProperty("--i", String(i));
+      badge.style.setProperty("--n", String(n));
+      badge.style.animationDelay = `${t.delayMs + i * 90}ms`;
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", QUALITY_NAME[t.quality]);
+      node.append(badge);
+    }
+    this.piecesLayer.append(node); // above pieces
+  }
+
   /** Tips the piece on `square` over (a checkmated king). Cleared by the next setPosition. */
+  /** A snapshot of what the board is showing, for the dev "Copy game state" button. */
+  debugState() {
+    return {
+      orientation: this.orientation,
+      position: Object.fromEntries(this.position),
+      movable: this.movableColor,
+      selected: this.selected,
+      highlights: this.highlights,
+      tacticBadges: this.tactic && { square: this.tactic.square, piece: this.tactic.code, details: this.tactic.details },
+      animMs: this.animMs,
+      arcade: this.arcade,
+    };
+  }
+
+  /** Puzzles: tactic badges shift left to leave the corner to the ✓/✕ mark. */
+  setMarkSlot(reserve: boolean) {
+    this.root.classList.toggle("mark-slot", reserve);
+  }
+
   setFallen(square: Square | null) {
     for (const node of this.els.values()) node.classList.remove("fallen");
     if (square) this.els.get(square)?.classList.add("fallen");
+  }
+
+  /**
+   * Game over: a green badge with a king on the winner's king and a red one
+   * with a king lying on its side on the loser's, popping in after
+   * `delayMs`. Pass null to clear.
+   */
+  setResult(result: { win: Square; lose: Square; how: "mate" | "resign" } | null, delayMs = 0) {
+    this.piecesLayer.querySelectorAll(".result").forEach((n) => n.remove());
+    if (!result) return;
+    // The Cburnett king in one flat color (inner lines in the badge's color):
+    // upright for the winner, lying on its side for the loser.
+    const king =
+      '<g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path stroke-linejoin="miter" d="M22.5 11.63V6M20 8h5"/>' +
+      '<path fill="currentColor" stroke-linecap="butt" stroke-linejoin="miter" d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5"/>' +
+      '<path fill="currentColor" d="M12.5 37c5.5 3.5 14.5 3.5 20 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-2.5-7.5-12-10.5-16-4-3 6 6 10.5 6 10.5v7"/>' +
+      '<path class="king-lines" d="M32 29.5s8.5-4 6.03-9.65C34.15 14 25 18 22.5 24.5v2.1-2.1C20 18 10.85 14 6.97 19.85 4.5 25.5 13 29.5 13 29.5M12.5 30c5.5-3 14.5-3 20 0m-20 3.5c5.5-3 14.5-3 20 0m-20 3.5c5.5-3 14.5-3 20 0"/>' +
+      "</g>";
+    const icons = {
+      win: king,
+      lose: `<g transform="rotate(90 22.5 22.5)">${king}</g>`,
+    };
+    for (const [sq, kind, icon, label] of [
+      [result.win, "win", icons.win, "Winner"],
+      [result.lose, "lose", icons.lose, result.how === "mate" ? "Checkmated" : "Resigned"],
+    ] as const) {
+      const node = this.squareDiv(sq, `result ${kind}`);
+      const badge = el("span", "result-badge");
+      badge.style.animationDelay = `${delayMs}ms`;
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", label);
+      badge.innerHTML = `<svg viewBox="0 0 45 45" aria-hidden="true">${icon}</svg>`;
+      node.append(badge);
+      this.piecesLayer.append(node);
+    }
   }
 
   /** Briefly glows `square` (fades in, then out). Cleared by a non-animated setPosition. */
@@ -148,13 +404,13 @@ export class Board {
   }
 
   /**
-   * Arcade: tiles (and their pieces) pop in ring by ring, spreading out from
+   * Fancy animation: tiles (and their pieces) pop in ring by ring, spreading out from
    * `origins`. Returns how long it takes and how many rings there are, or
-   * zeros in Classic style or with animation turned off.
+   * zeros unless animation is Fancy.
    */
   build(origins: Square[]): { ms: number; rings: number; stepMs: number } {
     const stepMs = 55;
-    if (!this.arcade || this.animMs === 0 || origins.length === 0) return { ms: 0, rings: 0, stepMs };
+    if (!this.fancy || this.animMs === 0 || origins.length === 0) return { ms: 0, rings: 0, stepMs };
     let rings = 0;
     const delay = (sq: Square) => {
       const d = Math.min(...origins.map((o) => chebyshev(o, sq)));
@@ -174,13 +430,13 @@ export class Board {
   }
 
   /**
-   * Arcade: the board falls apart around `center`, nearest tiles first, each
+   * Fancy animation: the board falls apart around `center`, nearest tiles first, each
    * taking its piece with it; the tile under `center` (and its fallen king)
-   * goes last. Returns the duration and ring count (zeros in Classic style).
+   * goes last. Returns the duration and ring count (zeros unless animation is Fancy).
    */
   crumble(center: Square): { ms: number; rings: number; stepMs: number } {
     const stepMs = 60;
-    if (!this.arcade || this.animMs === 0) return { ms: 0, rings: 0, stepMs };
+    if (!this.fancy || this.animMs === 0) return { ms: 0, rings: 0, stepMs };
     const fall = this.root.getBoundingClientRect().height;
     const squares = [...(this.squaresLayer.children as HTMLCollectionOf<HTMLElement>)];
     const outer = Math.max(...squares.map((n) => chebyshev(center, n.dataset.square!)));
@@ -205,21 +461,67 @@ export class Board {
   }
 
   setArrow(from: Square | null, to?: Square) {
-    this.arrowLayer.innerHTML = "";
-    if (!from || !to) return;
-    const [x1, y1] = this.center(from);
-    const [x2, y2] = this.center(to);
+    this.hintArrowLayer.innerHTML = from && to ? this.arrowSvg(from, to, 16, 34, 22) : "";
+  }
+
+  /**
+   * Shifts for arrows that would overlap (on the same line, with overlapping
+   * stretches): each such group is spread out side by side, a small gap apart,
+   * across the line. Others stay put.
+   */
+  private sideBySide(arrows: { from: Square; to: Square }[]): [number, number][] {
+    const seg = arrows.map((a) => [...this.center(a.from), ...this.center(a.to)]);
+    const group = arrows.map((_, i) => i);
+    const root = (i: number): number => (group[i] === i ? i : (group[i] = root(group[i])));
+    for (let i = 0; i < seg.length; i++) {
+      for (let j = i + 1; j < seg.length; j++) {
+        const [ax, ay, bx, by] = seg[i];
+        const [cx, cy, dx, dy] = seg[j];
+        const ux = bx - ax;
+        const uy = by - ay;
+        const len = Math.hypot(ux, uy);
+        // Both ends of j on i's line?
+        const off = (px: number, py: number) => Math.abs((px - ax) * uy - (py - ay) * ux) / len;
+        if (off(cx, cy) > 1 || off(dx, dy) > 1) continue;
+        // Overlapping stretches along that line (more than just touching ends)?
+        const t = (px: number, py: number) => ((px - ax) * ux + (py - ay) * uy) / len;
+        const [lo, hi] = [Math.min(t(cx, cy), t(dx, dy)), Math.max(t(cx, cy), t(dx, dy))];
+        if (Math.min(hi, len) - Math.max(lo, 0) > 1) group[root(j)] = root(i);
+      }
+    }
+    const shifts: [number, number][] = arrows.map(() => [0, 0]);
+    const members = new Map<number, number[]>();
+    arrows.forEach((_, i) => members.set(root(i), [...(members.get(root(i)) ?? []), i]));
+    const step = 16; // arrow width 12 + a small gap
+    for (const [first, list] of members) {
+      if (list.length < 2) continue;
+      const [ax, ay, bx, by] = seg[first];
+      const len = Math.hypot(bx - ax, by - ay);
+      const nx = -(by - ay) / len;
+      const ny = (bx - ax) / len;
+      list.forEach((i, k) => {
+        const o = (k - (list.length - 1) / 2) * step;
+        shifts[i] = [nx * o, ny * o];
+      });
+    }
+    return shifts;
+  }
+
+  /** An arrow from the center of `from` to the center of `to` (SVG, 800-unit board), shifted by `shift`. */
+  private arrowSvg(from: Square, to: Square, width: number, head: number, half: number, cls = "", shift: [number, number] = [0, 0]) {
+    const [x1, y1] = this.center(from).map((v, i) => v + shift[i]);
+    const [x2, y2] = this.center(to).map((v, i) => v + shift[i]);
     const len = Math.hypot(x2 - x1, y2 - y1);
     const ux = (x2 - x1) / len;
     const uy = (y2 - y1) / len;
-    const head = 34;
     const ex = x2 - ux * head;
     const ey = y2 - uy * head;
-    const px = -uy * 22;
-    const py = ux * 22;
-    this.arrowLayer.innerHTML =
-      `<line class="arrow" x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke-width="16" stroke-linecap="round"/>` +
-      `<polygon class="arrow-head" points="${x2},${y2} ${ex + px},${ey + py} ${ex - px},${ey - py}"/>`;
+    const px = -uy * half;
+    const py = ux * half;
+    return (
+      `<g class="${cls}"><line class="arrow" x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke-width="${width}" stroke-linecap="round"/>` +
+      `<polygon class="arrow-head" points="${x2},${y2} ${ex + px},${ey + py} ${ex - px},${ey - py}"/></g>`
+    );
   }
 
   // ---- position ----
@@ -250,10 +552,10 @@ export class Board {
       if (animate && this.dropped !== to) {
         node.classList.add("moving");
         window.setTimeout(() => node.classList.remove("moving"), this.animMs);
-        if (this.arcade) this.hop(node, code);
+        if (this.arcade && this.fancy) this.hop(node, code);
       } else {
         this.withoutTransition(node);
-        if (this.arcade && this.dropped === to) this.land(node);
+        if (this.arcade && this.fancy && this.dropped === to) this.land(node);
       }
       this.place(node, to);
       nextEls.set(to, node);
@@ -316,6 +618,10 @@ export class Board {
     }
     this.position = new Map(next);
     this.els = nextEls;
+    if (this.tactic && next.get(this.tactic.square) !== this.tactic.code) {
+      this.tactic = null;
+      this.renderTactics();
+    }
     if (this.selected && !next.has(this.selected)) this.selected = null;
     this.renderHighlights();
   }
@@ -338,6 +644,9 @@ export class Board {
       this.selected = sq;
       if (!wasSelected) this.onPickup?.(code);
       this.drag = { from: sq, el: this.els.get(sq)!, startX: e.clientX, startY: e.clientY, active: false, wasSelected };
+      // The piece jumps to the pointer right away; it only counts as a drag once
+      // the pointer has moved 4px (a release before that is a click).
+      this.followPointer(this.drag.el, e);
       try {
         this.root.setPointerCapture(e.pointerId);
       } catch {
@@ -353,12 +662,9 @@ export class Board {
   private pointerMove(e: PointerEvent) {
     const d = this.drag;
     if (!d) return;
+    this.followPointer(d.el, e);
     if (!d.active && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return;
     d.active = true;
-    const rect = this.root.getBoundingClientRect();
-    const size = rect.width / 8;
-    d.el.classList.add("dragging");
-    d.el.style.transform = `translate(${e.clientX - rect.left - size / 2}px, ${e.clientY - rect.top - size / 2}px)`;
     const over = this.squareAt(e.clientX, e.clientY);
     this.highlightLayer.querySelectorAll(".drag-over").forEach((n) => n.remove());
     if (over && this.dests.get(d.from)?.includes(over)) {
@@ -372,6 +678,10 @@ export class Board {
     this.drag = null;
     this.highlightLayer.querySelectorAll(".drag-over").forEach((n) => n.remove());
     if (!d.active) {
+      // A click: the piece goes straight back to its square.
+      d.el.classList.remove("dragging");
+      this.withoutTransition(d.el);
+      this.place(d.el, d.from);
       // A plain click keeps the piece selected only in click-to-move mode.
       if (d.wasSelected || !this.clickToMove) {
         this.selected = null;
@@ -387,8 +697,10 @@ export class Board {
       this.place(d.el, to);
       this.tryMove(d.from, to);
     } else {
-      // Dropped back home: in click-to-move mode the piece stays selected so a
-      // click can finish the move. Otherwise (or on an illegal square) deselect.
+      // Dropped back home or on a square it can't go to: it snaps straight back
+      // (Fancy: floats back). In click-to-move mode it stays selected if dropped
+      // on its own square, so a click can finish the move; otherwise it's deselected.
+      if (!this.fancy) this.withoutTransition(d.el);
       this.place(d.el, d.from);
       if (!(this.clickToMove && to === d.from)) {
         this.selected = null;
@@ -397,9 +709,19 @@ export class Board {
     }
   }
 
+  /** Centers a held piece on the pointer. */
+  private followPointer(node: HTMLElement, e: PointerEvent) {
+    const rect = this.root.getBoundingClientRect();
+    const size = rect.width / 8;
+    node.classList.add("dragging");
+    // Scale inside the transform (after the move), so it grows around the pointer.
+    node.style.transform = `translate(${e.clientX - rect.left - size / 2}px, ${e.clientY - rect.top - size / 2}px) scale(var(--held-scale, 1))`;
+  }
+
   private cancelDrag() {
     if (!this.drag) return;
     this.drag.el.classList.remove("dragging");
+    if (!this.fancy) this.withoutTransition(this.drag.el);
     this.place(this.drag.el, this.drag.from);
     this.selected = null;
     this.renderHighlights();
@@ -475,9 +797,33 @@ export class Board {
     const h = this.highlights;
     const layer = this.highlightLayer;
     layer.innerHTML = "";
-    for (const [sq, node] of this.els) node.classList.toggle("lifted", this.arcade && sq === this.selected);
-    if (h.lastMove) for (const sq of h.lastMove) layer.append(this.squareDiv(sq, "last-move"));
-    if (h.check) layer.append(this.squareDiv(h.check, "check"));
+    // With the option on, a move with tactic badges takes the main badge's color (yellow for the opponent's).
+    const t = this.tactic;
+    const tint = this.tacticHighlight && t && t.kinds.length && h.lastMove?.[1] === t.square ? (t.enemy ? "enemy" : t.kinds[0]) : null;
+    if (h.lastMove) {
+      for (const sq of h.lastMove) {
+        const node = this.squareDiv(sq, tint ? `last-move tinted ${tint}` : "last-move");
+        if (tint && this.tintPending) node.style.animationDelay = `${t!.delayMs}ms`;
+        else if (tint) node.style.animation = "none";
+        layer.append(node);
+      }
+      if (tint) this.tintPending = false;
+    }
+    // A king in check gets a red "+" badge (above the pieces, like the other badges).
+    // Kept while the same king stays in check, so redraws (e.g. selecting a piece) don't pop it in again.
+    const current = this.piecesLayer.querySelector<HTMLElement>(".check-badge-node");
+    if (current && current.dataset.check !== h.check) current.remove();
+    else if (current && h.check) this.place(current, h.check); // e.g. after the board flips
+    if (h.check && !(current && current.dataset.check === h.check)) {
+      const node = this.squareDiv(h.check, "check-badge-node");
+      node.dataset.check = h.check;
+      const badge = el("span", "check-badge");
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", "Check");
+      badge.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 4.5h2.8v6.1h6.1v2.8h-6.1v6.1h-2.8v-6.1H4.5v-2.8h6.1z" fill="currentColor"/></svg>';
+      node.append(badge);
+      this.piecesLayer.append(node);
+    }
     if (h.hint) layer.append(this.squareDiv(h.hint, "hint"));
     if (this.selected) {
       layer.append(this.squareDiv(this.selected, "selected"));
@@ -510,7 +856,7 @@ export class Board {
     return node;
   }
 
-  /** Classic draws the image on the piece itself; arcade on its inner element (via --img). */
+  /** Without arcade effects the image is drawn on the piece itself; with them, on its inner element (via --img). */
   private setImage(node: HTMLElement, code: string) {
     const url = this.pieceUrl(code);
     node.style.backgroundImage = url;

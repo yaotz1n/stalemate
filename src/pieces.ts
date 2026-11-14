@@ -1,6 +1,8 @@
 // Piece sets. A set turns (color, type) into a CSS image URL. Sets are folders
 // of images in public/pieces/<id>/ named wK.svg, bN.svg, ...
 
+import { SHARECHESS_SETS } from "./pieceCatalog";
+
 export type PieceColor = "w" | "b";
 export type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 
@@ -20,3 +22,17 @@ export function imageFolderSet(id: string, name: string, folder: string, ext = "
 
 /** Standard pieces by Cburnett, from Wikimedia Commons (BSD license; see public/pieces/cburnett/LICENSE.txt). */
 export const CBURNETT = imageFolderSet("cburnett", "Cburnett", "/pieces/cburnett");
+
+/** Pieces by Maxime Chupin, from github.com/chupinmaxime/mpchess-pieces (GPL-3.0; see public/pieces/mpchess/LICENSE.txt). */
+export const MPCHESS = imageFolderSet("mpchess", "mpchess", "/pieces/mpchess");
+
+/** Sets offered in Settings; the first is the default. */
+export const PIECE_SETS: PieceSet[] = [
+  CBURNETT,
+  MPCHESS,
+  ...SHARECHESS_SETS.map(([id, name]) => imageFolderSet(id, name, `/pieces/${id}`)),
+];
+
+export function pieceSetById(id: string): PieceSet {
+  return PIECE_SETS.find((s) => s.id === id) ?? PIECE_SETS[0];
+}

@@ -4,49 +4,48 @@
 
 import { api } from "./api";
 
-export interface BoardTheme {
-  id: string;
-  name: string;
-  light: string;
-  dark: string;
-}
-
-export const BOARD_THEMES: BoardTheme[] = [
-  { id: "walnut", name: "Walnut", light: "#f0d9b5", dark: "#b58863" },
-  { id: "moss", name: "Moss", light: "#ebecd0", dark: "#7b9a5a" },
-  { id: "slate", name: "Slate", light: "#dee3e6", dark: "#8ca2ad" },
-  { id: "rose", name: "Rose", light: "#f3e3e6", dark: "#c08a97" },
-  { id: "midnight", name: "Midnight", light: "#a9b3c6", dark: "#4f5b77" },
-  { id: "sand", name: "Sand", light: "#f6eedc", dark: "#d1b37f" },
-  { id: "simple-dark", name: "Simple Dark", light: "#bbaf9b", dark: "#453f3a" },
-];
-
+/**
+ * Off: instant moves, no effects. Normal: pieces slide (and lift when held,
+ * captures fade, the rating counter rolls). Fancy: Normal plus pieces arcing
+ * through the air (knights hop) and squashing as they land, a little slower so
+ * the arc reads, and the board building out and crumbling.
+ */
 export const ANIMATION_SPEEDS = [
   { id: "off", name: "Off", ms: 0 },
-  { id: "fast", name: "Fast", ms: 120 },
   { id: "normal", name: "Normal", ms: 200 },
-  { id: "slow", name: "Slow", ms: 320 },
+  { id: "fancy", name: "Fancy", ms: 280 },
 ];
 
-
-/** Overall feel. Classic is the original look and sound; Arcade adds motion and recorded sounds. */
-export const STYLES = [
-  { id: "arcade", name: "Arcade" },
-  { id: "classic", name: "Classic" },
-];
 
 export interface Settings {
-  style: string;
-  /** A BOARD_THEMES id, or "custom" to use customLight/customDark. */
-  boardTheme: string;
-  customLight: string;
-  customDark: string;
+  /** Which screen is showing: "puzzles" or "play" (against the bot). */
+  mode: string;
+  /** Last bot level picked (1-5). */
+  botLevel: number;
+  /** Last color picked to play: "w", "b" or "random". */
+  botColor: string;
+  /** A PIECE_SETS id (src/pieces.ts). */
+  pieceSet: string;
   animation: string;
   sound: boolean;
   volume: number;
   showLegal: boolean;
   showCoords: boolean;
   clickToMove: boolean;
+  /** Fork / pin / skewer badges on the player's own moves. */
+  showTactics: boolean;
+  /** Also badge the opponent's tactics (in yellow). */
+  enemyTactics: boolean;
+  /** A move with tactic badges gets its last-move highlight in the badge's color. */
+  tacticHighlight: boolean;
+  /** Arrows showing what each tactic badge's piece attacks. */
+  tacticArrows: boolean;
+  /** Bot games: grade the player's moves (best move, inaccuracy, mistake, blunder). */
+  showQuality: boolean;
+  /** Bot games: the evaluation bar beside the board. */
+  evalBar: boolean;
+  /** Bot games: while playing, grade and badge only your own moves (the full review opens once the game ends). */
+  fairLive: boolean;
   autoNext: boolean;
   kingGlow: boolean;
   /** Sandbox for testing visuals and sounds: move both sides, nothing scored or saved. */
@@ -54,16 +53,23 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
-  style: "arcade",
-  boardTheme: "walnut",
-  customLight: "#f0d9b5",
-  customDark: "#b58863",
+  mode: "puzzles",
+  botLevel: 2,
+  botColor: "w",
+  pieceSet: "cburnett",
   animation: "normal",
   sound: true,
   volume: 0.7,
   showLegal: true,
   showCoords: true,
-  clickToMove: false,
+  clickToMove: true,
+  showTactics: true,
+  enemyTactics: false,
+  tacticHighlight: true,
+  tacticArrows: true,
+  showQuality: true,
+  evalBar: true,
+  fairLive: true,
   autoNext: true,
   kingGlow: false,
   devMode: false,
@@ -79,6 +85,8 @@ export async function loadSettings(): Promise<Settings> {
     (s as unknown as Record<string, unknown>)[key] =
       typeof def === "boolean" ? v === "true" : typeof def === "number" ? Number(v) : v;
   }
+  // Old speeds (Fast/Slow) no longer exist.
+  if (!ANIMATION_SPEEDS.some((a) => a.id === s.animation)) s.animation = DEFAULTS.animation;
   return s;
 }
 

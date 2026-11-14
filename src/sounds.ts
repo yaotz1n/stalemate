@@ -1,6 +1,5 @@
-// Sound effects. Each event maps to a player function. The Classic pack
-// synthesizes its sounds with Web Audio; the Arcade pack plays recorded
-// samples (public/sounds/arcade, CC0) with pitch variation.
+// Sound effects. Each event maps to a player function. The Arcade pack plays
+// recorded samples (public/sounds/arcade, CC0) with pitch variation.
 
 import type { PieceType } from "./pieces";
 
@@ -14,7 +13,6 @@ export type SoundEvent =
   | "wrong"
   | "solved"
   | "hint"
-  // Arcade-only events; the Classic pack stays silent for these.
   | "pickup"
   | "tick"
   | "build"
@@ -37,109 +35,6 @@ export interface SoundPack {
   /** Loads any sample files ahead of time so the first play isn't late. */
   preload?(ctx: AudioContext): void;
 }
-
-function tone(ctx: AudioContext, out: AudioNode, freq: number, start: number, dur: number, type: OscillatorType = "sine", gain = 0.3) {
-  const osc = ctx.createOscillator();
-  const g = ctx.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  const t = ctx.currentTime + start;
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(gain, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(g).connect(out);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
-}
-
-function knock(ctx: AudioContext, out: AudioNode, freq: number, dur: number, gain: number, start = 0) {
-  const len = Math.ceil(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = freq;
-  filter.Q.value = 1.2;
-  const g = ctx.createGain();
-  g.gain.value = gain;
-  src.connect(filter).connect(g).connect(out);
-  src.start(ctx.currentTime + start);
-}
-
-export const synthPack: SoundPack = {
-  id: "synth",
-  name: "Simple",
-  play(event, ctx, out) {
-    switch (event) {
-      case "move":
-        knock(ctx, out, 1800, 0.06, 1.4);
-        break;
-      case "capture":
-        knock(ctx, out, 900, 0.1, 2.2);
-        knock(ctx, out, 2400, 0.05, 0.8, 0.02);
-        break;
-      case "castle":
-        knock(ctx, out, 1800, 0.06, 1.2);
-        knock(ctx, out, 1600, 0.06, 1.2, 0.09);
-        break;
-      case "check":
-        knock(ctx, out, 1800, 0.06, 1.2);
-        tone(ctx, out, 880, 0.02, 0.18, "triangle", 0.12);
-        break;
-      case "promote":
-        knock(ctx, out, 1800, 0.06, 1.2);
-        tone(ctx, out, 660, 0.03, 0.12, "triangle", 0.12);
-        tone(ctx, out, 990, 0.1, 0.18, "triangle", 0.12);
-        break;
-      case "correct":
-        tone(ctx, out, 880, 0, 0.15, "sine", 0.15);
-        break;
-      case "wrong":
-        tone(ctx, out, 220, 0, 0.25, "square", 0.06);
-        tone(ctx, out, 185, 0.08, 0.3, "square", 0.06);
-        break;
-      case "solved":
-        [523, 659, 784, 1047].forEach((f, i) => tone(ctx, out, f, i * 0.08, 0.35, "triangle", 0.14));
-        break;
-      case "hint":
-        tone(ctx, out, 1320, 0, 0.12, "sine", 0.08);
-        tone(ctx, out, 1760, 0.06, 0.16, "sine", 0.08);
-        break;
-    }
-  },
-};
-
-/** A pack backed by audio files, e.g. filePack("wood", "Wood", "/sounds/wood") -> /sounds/wood/move.mp3 */
-export function filePack(id: string, name: string, folder: string, ext = "mp3"): SoundPack {
-  const buffers = new Map<SoundEvent, Promise<AudioBuffer | null>>();
-  return {
-    id,
-    name,
-    play(event, ctx, out) {
-      if (!buffers.has(event)) {
-        buffers.set(
-          event,
-          fetch(`${folder}/${event}.${ext}`)
-            .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
-            .then((b) => ctx.decodeAudioData(b))
-            .catch(() => null),
-        );
-      }
-      buffers.get(event)!.then((buf) => {
-        if (!buf) return;
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(out);
-        src.start();
-      });
-    },
-  };
-}
-
-// ---- Arcade: recorded wood/glass samples ----
 
 const ARCADE_FILES = [
   "move-1", "move-2", "move-3", "move-4", "move-5",
@@ -258,11 +153,11 @@ export class Sounds {
   enabled = true;
   volume = 0.7;
 
-  constructor(public pack: SoundPack = synthPack) {}
+  constructor(public pack: SoundPack) {}
 
-  setPack(pack: SoundPack) {
-    this.pack = pack;
-    if (pack.preload) pack.preload(this.context());
+  /** Loads the pack's samples ahead of time so the first play isn't late. */
+  preload() {
+    this.pack.preload?.(this.context());
   }
 
   play(event: SoundEvent, opts: SoundOptions = {}) {

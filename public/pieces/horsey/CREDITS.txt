@@ -1,0 +1,8 @@
+Horsey piece set
+
+Author: cham, michael1241
+License: CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/)
+Source: https://sharechess.github.io
+
+Files renamed from pw.svg/kb.svg/... to wP.svg/bK.svg/...; via https://github.com/sharechess/sharechess (public/pieces/horsey).
+viewBox added to each file so it scales cleanly.

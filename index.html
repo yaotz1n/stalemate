@@ -10,11 +10,33 @@
 
   <body>
     <main class="app">
-      <section class="board-area">
-        <div id="board" class="board-host"></div>
-      </section>
+      <div class="board-column">
+        <div class="board-row">
+          <div id="eval-bar" class="eval-bar" hidden aria-label="Evaluation">
+            <div id="eval-fill" class="eval-fill"></div>
+            <span id="eval-num" class="eval-num"></span>
+          </div>
+          <section class="board-area">
+            <div id="board" class="board-host"></div>
+          </section>
+        </div>
+        <div id="tactics-card" class="card tactic-card">
+          <div class="label">Tactical info</div>
+          <ol id="tactics-log" class="tactic-log" aria-label="Tactics on your moves"></ol>
+        </div>
+        <div id="dev-bar" class="dev-bar" hidden>
+          <button id="btn-copy-state">Copy game state</button>
+          <span id="copy-note" class="copy-note" aria-live="polite"></span>
+        </div>
+      </div>
 
       <aside class="panel">
+        <nav class="mode-tabs" role="tablist" aria-label="Mode">
+          <button id="tab-puzzles" role="tab" aria-selected="true">Puzzles</button>
+          <button id="tab-play" role="tab" aria-selected="false">Computer</button>
+        </nav>
+
+        <div id="puzzle-panel" class="mode-panel">
         <div class="card rating-card">
           <div class="label">Rating</div>
           <div class="rating-row">
@@ -39,8 +61,46 @@
         </div>
 
         <div id="puzzle-id" class="puzzle-id"></div>
+        </div>
+
+        <div id="play-panel" class="mode-panel" hidden>
+          <div id="play-setup" class="card setup-card">
+            <div class="label">Bot level <span id="level-name" class="label-value"></span></div>
+            <div id="level-choices" class="seg seg-5" role="radiogroup" aria-label="Bot level"></div>
+            <div class="label">Play as</div>
+            <div id="color-choices" class="seg seg-3" role="radiogroup" aria-label="Your color"></div>
+            <div class="actions single">
+              <button id="btn-start-game" class="primary">Start game</button>
+            </div>
+          </div>
+
+          <div id="play-game" class="play-game" hidden>
+            <!-- Hidden for now (still kept up to date). -->
+            <div class="card bot-card" hidden>
+              <div class="label">Opponent</div>
+              <div id="bot-name" class="bot-name"></div>
+            </div>
+            <div id="game-status" class="status" hidden>
+              <span id="game-swatch" class="swatch w"></span>
+              <span id="game-status-text"></span>
+            </div>
+            <ol id="move-list" class="card move-list" aria-label="Moves"></ol>
+            <div class="actions">
+              <button id="btn-takeback">Takeback</button>
+              <button id="btn-resign">Resign</button>
+              <button id="btn-new-game" class="primary" hidden>New game</button>
+              <button id="btn-close-review" class="primary wide" hidden>Close review</button>
+            </div>
+          </div>
+        </div>
 
         <footer class="panel-footer">
+          <button id="btn-games" class="icon-btn" title="Past games" aria-label="Past games">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M5.5 3h12A1.5 1.5 0 0 1 19 4.5v13a1 1 0 0 1-1 1H6.5a1 1 0 0 0 0 2H19V22H6.5A3 3 0 0 1 3.5 19V5A2 2 0 0 1 5.5 3zm2 3v1.6h8V6zm0 3.2v1.6h6V9.2z"/></svg>
+          </button>
+          <button id="btn-stats" class="icon-btn" title="Stats" aria-label="Stats">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 20h16v1.6H4zM5 11h3v7.5H5zM10.5 5h3v13.5h-3zM16 8.5h3v10h-3z"/></svg>
+          </button>
           <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.2 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
           </button>
@@ -48,26 +108,66 @@
       </aside>
     </main>
 
+    <dialog id="game-over" class="game-over">
+      <div id="game-over-title" class="game-over-title"></div>
+      <div id="game-over-detail" class="game-over-detail"></div>
+      <div id="game-over-accuracy" class="game-over-accuracy"></div>
+      <div class="actions">
+        <button id="btn-over-close">Close</button>
+        <button id="btn-over-new" class="primary">New game</button>
+      </div>
+    </dialog>
+
+    <dialog id="games" class="stats-dialog">
+      <header>
+        <h2>Past games</h2>
+        <button id="btn-close-games" class="icon-btn" aria-label="Close">✕</button>
+      </header>
+      <div id="games-body"></div>
+      <h3>Move games between devices</h3>
+      <p class="games-help">Copy a game's code (or all of them), then paste it here on your other device.</p>
+      <div class="games-transfer">
+        <textarea id="import-codes" rows="2" placeholder="Paste game codes (SM1.…)" spellcheck="false"></textarea>
+        <div class="games-transfer-actions">
+          <button id="btn-import-games">Import</button>
+          <button id="btn-copy-all-games">Copy all</button>
+        </div>
+        <span id="games-note" class="copy-note" aria-live="polite"></span>
+      </div>
+    </dialog>
+
+    <dialog id="stats" class="stats-dialog">
+      <header>
+        <h2>Your stats</h2>
+        <button id="btn-close-stats" class="icon-btn" aria-label="Close">✕</button>
+      </header>
+      <div id="stats-view" class="seg seg-2 stats-view" role="radiogroup" aria-label="Stats to show">
+        <button data-id="bot" role="radio">Bot games</button>
+        <button data-id="puzzles" role="radio">Puzzles</button>
+      </div>
+      <div id="stats-body"></div>
+    </dialog>
+
     <dialog id="settings">
       <header>
         <h2>Settings</h2>
         <button id="btn-close-settings" class="icon-btn" aria-label="Close">✕</button>
       </header>
-      <section class="rows">
-        <label>Style <select id="opt-style"></select></label>
-      </section>
       <section>
-        <h3>Board</h3>
-        <div id="opt-board-theme" class="swatches"></div>
-        <div class="color-pickers">
-          <label><input type="color" id="opt-light" /> Light squares</label>
-          <label><input type="color" id="opt-dark" /> Dark squares</label>
-        </div>
+        <h3>Pieces <span id="piece-set-name" class="h3-detail"></span></h3>
+        <div id="opt-piece-set" class="swatches piece-grid"></div>
       </section>
       <section class="rows">
         <label>Animation <select id="opt-animation"></select></label>
         <label><input type="checkbox" id="opt-clickmove" /> Click to move</label>
         <label><input type="checkbox" id="opt-legal" /> Show legal moves</label>
+        <label><input type="checkbox" id="opt-tactics" /> Mark tactics on your moves (forks, pins, skewers, discoveries, double checks)</label>
+        <label><input type="checkbox" id="opt-enemy-tactics" /> Mark your opponent's tactics too (yellow badges)</label>
+        <label><input type="checkbox" id="opt-tactic-highlight" /> Color a tactic move's highlight like its badge</label>
+        <label><input type="checkbox" id="opt-tactic-arrows" /> Draw arrows showing what each tactic attacks</label>
+        <label><input type="checkbox" id="opt-quality" /> Show move grades against the computer (★ best move, ?! inaccuracy, ? mistake, ?? blunder) and better-move arrows</label>
+        <label><input type="checkbox" id="opt-evalbar" /> Show the evaluation bar against the computer</label>
+        <label><input type="checkbox" id="opt-fair-live" /> Fair live review: while playing, show tactics only, no move grades or eval bar (the full review opens up when the game ends)</label>
         <label><input type="checkbox" id="opt-coords" /> Show coordinates</label>
         <label><input type="checkbox" id="opt-autonext" /> Go to next puzzle after solving</label>
         <label><input type="checkbox" id="opt-kingglow" /> Highlight your king's square at start</label>

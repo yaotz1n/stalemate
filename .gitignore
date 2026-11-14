@@ -29,3 +29,6 @@ data/*.tmp
 
 # Downloaded build outputs
 installers/
+
+# Stockfish binaries (download with: node scripts/fetch-stockfish.mjs)
+src-tauri/binaries/

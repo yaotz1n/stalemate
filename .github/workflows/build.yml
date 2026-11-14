@@ -61,6 +61,9 @@ jobs:
 
       - run: npm ci
 
+      # Stockfish grades moves in game review; it's bundled with the app but not kept in git.
+      - run: node scripts/fetch-stockfish.mjs
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

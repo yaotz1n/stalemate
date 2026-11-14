@@ -49,7 +49,7 @@ input {
   --pad: 24px;
   --gap: 20px;
   --panel-w: 300px;
-  --board: min(calc(100vh - 2 * var(--pad)), calc(100vw - 2 * var(--pad) - var(--gap) - var(--panel-w)));
+  --board: min(calc(100vh - 2 * var(--pad) - var(--dev-bar, 0px) - var(--tactics-h, 0px)), calc(100vw - 2 * var(--pad) - var(--gap) - var(--panel-w) - var(--evalbar, 0px)));
   display: flex;
   gap: var(--gap);
   padding: var(--pad);
@@ -61,8 +61,191 @@ input {
    the square grid and the highlight/piece layers round differently (gaps, off-square borders). */
 @supports (width: round(down, 100px, 8px)) {
   .app {
-    --board: round(down, min(calc(100vh - 2 * var(--pad)), calc(100vw - 2 * var(--pad) - var(--gap) - var(--panel-w))), 8px);
+    --board: round(down, min(calc(100vh - 2 * var(--pad) - var(--dev-bar, 0px) - var(--tactics-h, 0px)), calc(100vw - 2 * var(--pad) - var(--gap) - var(--panel-w) - var(--evalbar, 0px))), 8px);
   }
+}
+
+/* Tactical info: the player's moves that set up tactics, newest on top, each as
+   move, attacker, tactic icon, then what it hits. */
+.app.tactics {
+  --tactics-h: 124px; /* the card's height plus the gap above it */
+}
+.tactic-card {
+  height: 116px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+.tactic-card[hidden] {
+  display: none;
+}
+/* Rows in columns, newest first; scrolls when there are more than fit. */
+.tactic-log {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-auto-rows: 30px;
+  gap: 5px;
+  overflow-y: auto;
+}
+.tactic-log.empty::before {
+  content: "No tactics yet";
+  color: var(--muted);
+  font-size: 13px;
+}
+.feed-entry {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid color-mix(in srgb, var(--tactic, #fff) 45%, transparent);
+  cursor: pointer;
+}
+.feed-entry.current {
+  border-color: var(--tactic, #fff);
+  background: rgba(0, 0, 0, 0.45);
+}
+.feed-entry.fresh {
+  animation: feed-in 220ms ease-out both;
+}
+@keyframes feed-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+.feed-move {
+  min-width: 64px;
+  margin-right: 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.feed-entry.current .feed-move {
+  color: var(--text);
+}
+.feed-piece {
+  width: 24px;
+  height: 24px;
+  background-size: 100% 100%;
+  /* A faint light edge so black pieces read on the dark entry. */
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.6));
+}
+.feed-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 4px;
+  border-radius: 50%;
+  color: #fff;
+}
+/* Tactic icons after a move in the move list. */
+.move-tactics {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 5px;
+}
+.feed-icon.mini {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.feed-icon svg {
+  width: 66%;
+  height: 66%;
+}
+
+/* Dev mode: a bar under the board (Copy game state); the board shrinks to make room. */
+.app.dev {
+  --dev-bar: 44px;
+}
+.board-column {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dev-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+}
+.dev-bar[hidden] {
+  display: none;
+}
+.dev-bar button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.copy-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Evaluation bar (bot games): White's share fills from White's side; it sits left of the board. */
+.app.evalbar {
+  --evalbar: 30px; /* the bar and its gap */
+}
+.board-row {
+  display: flex;
+  gap: 8px;
+}
+.eval-bar {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: var(--board);
+  border-radius: 5px;
+  overflow: hidden;
+  background: #3a3a3f;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.eval-bar[hidden] {
+  display: none;
+}
+.eval-bar.flipped {
+  justify-content: flex-start;
+}
+.eval-fill {
+  height: 50%;
+  background: #eeeeea;
+  transition: height 450ms ease;
+}
+.eval-num {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #eeeeea;
+}
+/* The number sits at the leading side's end of the bar. */
+.eval-num.white-ahead {
+  top: auto;
+  bottom: 4px;
+  color: #3a3a3f;
+}
+.eval-bar.flipped .eval-num {
+  top: auto;
+  bottom: 4px;
+}
+.eval-bar.flipped .eval-num.white-ahead {
+  top: 4px;
+  bottom: auto;
 }
 
 /* ---- board ---- */
@@ -85,7 +268,7 @@ input {
   width: 100%;
   height: 100%;
   border-radius: 6px;
-  overflow: hidden;
+  /* Not clipped, so badges on edge squares can overhang the board; the layers below round their own corners. */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   user-select: none;
   touch-action: none;
@@ -140,6 +323,12 @@ input {
 .board-highlights {
   pointer-events: none;
 }
+.board-squares,
+.board-glow,
+.board-highlights {
+  border-radius: inherit;
+  overflow: hidden;
+}
 
 .hl,
 .piece {
@@ -153,14 +342,81 @@ input {
 .hl.last-move {
   background: var(--hl-last);
 }
+/* Settings: a tactic move's highlight in its badge's color, fading in as the badge pops. */
+.hl.last-move.tinted {
+  background: color-mix(in srgb, var(--tint) 55%, transparent);
+  animation: tint-in 200ms ease-out both;
+}
+@keyframes tint-in {
+  from {
+    background: var(--hl-last);
+  }
+}
+.hl.last-move.fork {
+  --tint: #e8833a;
+}
+.hl.last-move.pin {
+  --tint: #9b5de5;
+}
+.hl.last-move.skewer {
+  --tint: #1fa99a;
+}
+.hl.last-move.discovered {
+  --tint: #2f7ed8;
+}
+.hl.last-move.double-check {
+  --tint: #a8286f;
+}
+.hl.last-move.mate-threat {
+  --tint: #34343c;
+}
+.hl.last-move.free-piece {
+  --tint: #7cb342;
+}
+.hl.last-move.battery {
+  --tint: #5560d6;
+}
+.hl.last-move.trapped {
+  --tint: #8a6440;
+}
+.hl.last-move.sacrifice {
+  --tint: #7a1f2e;
+}
+.hl.last-move.enemy {
+  --tint: #f2c12e;
+}
 .hl.selected {
   background: var(--hl-selected);
 }
 .hl.drag-over {
   box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.65);
 }
-.hl.check {
-  background: radial-gradient(circle, rgba(255, 30, 30, 0.9) 0%, rgba(230, 20, 20, 0.45) 40%, transparent 72%);
+/* Check: a red "+" badge on the king's corner (same spot and size as the tactic badges). */
+.hl.check-badge-node {
+  pointer-events: none;
+  z-index: 7;
+  transition: transform 0s;
+}
+.check-badge {
+  position: absolute;
+  top: -9.5%;
+  right: -9.5%;
+  width: 39%;
+  height: 39%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bad);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  animation: badge-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) var(--anim-ms) both; /* once the checking move lands */
+}
+.check-badge svg {
+  width: 66%;
+  height: 66%;
+}
+.board.no-motion .check-badge {
+  animation: none;
 }
 .hl.dest::after {
   content: "";
@@ -188,21 +444,22 @@ input {
 
 .hl.mark {
   pointer-events: none;
-  z-index: 5;
+  z-index: 8; /* above tactic badges (and the arrows) */
   transition: transform 0s;
 }
+/* Badges (✓/✕ and tactics) sit on the top-right corner of the square, overhanging it a little. */
 .mark-badge {
   position: absolute;
-  top: -10%;
-  right: -10%;
-  width: 38%;
-  height: 38%;
+  top: -10.5%;
+  right: -10.5%;
+  width: 44%;
+  height: 44%;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: #fff;
   font-weight: 800;
-  font-size: max(11px, 1.8cqmin);
+  font-size: max(12px, 2.1cqmin);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   animation: pop 220ms ease-out;
 }
@@ -212,6 +469,209 @@ input {
 .mark.bad .mark-badge {
   background: var(--bad);
 }
+/* Game over: green badge (upright king) on the winner's king, red (king on its side) on the loser's (same spot and size as the ✓/✕ mark). */
+.hl.result {
+  pointer-events: none;
+  z-index: 8;
+  transition: transform 0s;
+}
+.result-badge {
+  position: absolute;
+  top: -10.5%;
+  right: -10.5%;
+  width: 44%;
+  height: 44%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  animation: badge-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.result-badge svg {
+  width: 78%;
+  height: 78%;
+}
+.result.win .result-badge {
+  --badge: var(--good);
+}
+.result.lose .result-badge {
+  --badge: var(--bad);
+}
+.result-badge {
+  background: var(--badge);
+}
+.result-badge .king-lines {
+  stroke: var(--badge);
+}
+.board.no-motion .result-badge {
+  animation: none;
+}
+/* Tactic badges (fork, pin, skewer, discovered attack, double check) on the top-right corner of the piece that made
+   them, like the ✓/✕ mark. Several sit side by side, the most striking in the corner (--i: position from the left,
+   --n: how many). In puzzles (.mark-slot) they start left of the ✓. */
+.hl.tactic {
+  pointer-events: none;
+  z-index: 7; /* above the tactic arrows */
+  transition: transform 0s;
+}
+.tactic-badge {
+  position: absolute;
+  top: -9.5%;
+  /* Side by side with a small gap, leftwards from the corner (and past the ✓/✕ in puzzles). */
+  right: calc(-9.5% + (var(--n, 1) - 1 - var(--i, 0)) * 42% + var(--slot, 0) * 47%);
+  width: 39%;
+  height: 39%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  animation: badge-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+/* Move quality: a badge like the tactics', in the corner of the row. */
+.tactic-badge.quality-badge {
+  font-weight: 800;
+  font-size: max(11px, 1.9cqmin);
+  letter-spacing: -0.04em;
+}
+.quality-badge.best {
+  background: #2e9d6a;
+}
+.quality-badge.inaccuracy {
+  background: #e4b52e;
+  color: #3b2c00;
+}
+.quality-badge.mistake {
+  background: #e47a2e;
+}
+.quality-badge.blunder {
+  background: #d23a3a;
+}
+.move-quality {
+  margin-left: 4px;
+  font-weight: 800;
+  font-size: 13px;
+}
+.move-quality.best {
+  color: #3fbf86;
+}
+.move-quality.inaccuracy {
+  color: #e9bf3c;
+}
+.move-quality.mistake {
+  color: #ef8a3f;
+}
+.move-quality.blunder {
+  color: #e25555;
+}
+/* The opponent's tactics (Settings): all yellow, same icons. */
+.hl.tactic.enemy .tactic-badge {
+  background: #f2c12e;
+  color: #3b2c00;
+}
+span.feed-icon.check {
+  background: var(--bad);
+}
+span.feed-icon.enemy {
+  background: #f2c12e;
+  color: #3b2c00;
+}
+li.feed-entry.enemy {
+  --tactic: #f2c12e;
+}
+.board.mark-slot {
+  --slot: 1;
+}
+/* Animation Off: badges just appear (and vanish on the next move). */
+.board.no-motion .tactic-badge {
+  animation: none;
+}
+@keyframes badge-pop {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+.tactic-badge svg {
+  width: 66%;
+  height: 66%;
+}
+.tactic-badge.fork,
+.feed-icon.fork {
+  background: #e8833a;
+}
+.feed-entry.fork {
+  --tactic: #e8833a;
+}
+.tactic-badge.pin,
+.feed-icon.pin {
+  background: #9b5de5;
+}
+.feed-entry.pin {
+  --tactic: #9b5de5;
+}
+.tactic-badge.skewer,
+.feed-icon.skewer {
+  background: #1fa99a;
+}
+.feed-entry.skewer {
+  --tactic: #1fa99a;
+}
+.tactic-badge.discovered,
+.feed-icon.discovered {
+  background: #2f7ed8;
+}
+.feed-entry.discovered {
+  --tactic: #2f7ed8;
+}
+.tactic-badge.double-check,
+.feed-icon.double-check {
+  background: #a8286f;
+}
+.feed-entry.double-check {
+  --tactic: #a8286f;
+}
+.tactic-badge.mate-threat,
+.feed-icon.mate-threat {
+  background: #34343c;
+}
+.feed-entry.mate-threat {
+  --tactic: #34343c;
+}
+.tactic-badge.free-piece,
+.feed-icon.free-piece {
+  background: #7cb342;
+}
+.feed-entry.free-piece {
+  --tactic: #7cb342;
+}
+.tactic-badge.battery,
+.feed-icon.battery {
+  background: #5560d6;
+}
+.feed-entry.battery {
+  --tactic: #5560d6;
+}
+.tactic-badge.trapped,
+.feed-icon.trapped {
+  background: #8a6440;
+}
+.feed-entry.trapped {
+  --tactic: #8a6440;
+}
+.tactic-badge.sacrifice,
+.feed-icon.sacrifice {
+  background: #7a1f2e;
+}
+.feed-entry.sacrifice {
+  --tactic: #7a1f2e;
+}
+.board.arcade.crumbling .tactic {
+  opacity: 0;
+  transition: opacity 250ms;
+}
+
 @keyframes pop {
   from {
     transform: scale(0.2);
@@ -233,7 +693,8 @@ input {
   transition: none;
   z-index: 10;
   cursor: grabbing;
-  scale: 1.08;
+  /* Used by the drag transform (board.ts followPointer); the `scale` property would grow it around its home square. */
+  --held-scale: 1; /* full size: only Fancy grows a held piece (below) */
   filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.35));
 }
 /* Player's king square glows green when the puzzle begins, to show whose move it is. */
@@ -309,6 +770,65 @@ input {
 }
 .board-arrows .arrow-head {
   fill: var(--arrow);
+}
+
+/* Tactic arrows: who attacks what, in the tactic's color; they fade in with the badge. */
+.board-arrows .tactic-arrow {
+  opacity: 0.78;
+  animation: arrow-in 260ms ease-out both;
+}
+.board-arrows .tactic-arrow .arrow {
+  stroke: var(--tactic-arrow);
+}
+.board-arrows .tactic-arrow .arrow-head {
+  fill: var(--tactic-arrow);
+}
+@keyframes arrow-in {
+  from {
+    opacity: 0;
+  }
+}
+.board.no-motion .board-arrows .tactic-arrow {
+  animation: none;
+}
+.board.arcade.crumbling .tactic-arrow {
+  display: none;
+}
+.board-arrows .tactic-arrow.fork {
+  --tactic-arrow: #e8833a;
+}
+.board-arrows .tactic-arrow.pin {
+  --tactic-arrow: #9b5de5;
+}
+.board-arrows .tactic-arrow.skewer {
+  --tactic-arrow: #1fa99a;
+}
+.board-arrows .tactic-arrow.discovered {
+  --tactic-arrow: #2f7ed8;
+}
+.board-arrows .tactic-arrow.double-check {
+  --tactic-arrow: #a8286f;
+}
+.board-arrows .tactic-arrow.mate-threat {
+  --tactic-arrow: #34343c;
+}
+.board-arrows .tactic-arrow.free-piece {
+  --tactic-arrow: #7cb342;
+}
+.board-arrows .tactic-arrow.battery {
+  --tactic-arrow: #5560d6;
+}
+.board-arrows .tactic-arrow.trapped {
+  --tactic-arrow: #8a6440;
+}
+.board-arrows .tactic-arrow.sacrifice {
+  --tactic-arrow: #7a1f2e;
+}
+.board-arrows .tactic-arrow.better-move {
+  --tactic-arrow: #3fbf86;
+}
+.board-arrows .tactic-arrow.enemy {
+  --tactic-arrow: #f2c12e;
 }
 
 .board-promo {
@@ -533,10 +1053,153 @@ kbd {
   background: var(--card);
 }
 
+/* ---- modes: puzzles / play the bot ---- */
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  flex: none;
+}
+.mode-tabs button {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.mode-tabs button:hover {
+  color: var(--text);
+}
+.mode-tabs button[aria-selected="true"] {
+  background: var(--card);
+  color: var(--text);
+}
+
+.mode-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.mode-panel[hidden],
+.play-game[hidden],
+.setup-card[hidden],
+.bot-card[hidden],
+#game-status[hidden] {
+  display: none;
+}
+#play-panel {
+  flex: 1;
+}
+
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.label-value {
+  color: var(--text);
+  font-weight: 600;
+}
+.seg {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.seg-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+.seg-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.seg button {
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-weight: 600;
+  cursor: pointer;
+}
+.seg button:hover {
+  background: color-mix(in srgb, var(--card) 80%, #fff);
+}
+.seg button[aria-checked="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.actions.single {
+  grid-template-columns: 1fr;
+}
+
+.play-game {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+.bot-name {
+  font-weight: 650;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+/* Moves in numbered pairs; grows to fill the panel and scrolls. */
+.move-list {
+  flex: 1;
+  min-height: 72px;
+  margin: 0;
+  padding: 10px 12px 10px 44px;
+  overflow-y: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.move-list li {
+  padding: 2px 0;
+}
+.move-list li::marker {
+  color: var(--muted);
+}
+.move-list li > span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 72px;
+  padding: 0 6px;
+  border-radius: 4px;
+}
+.move-list li > span {
+  cursor: pointer;
+}
+.move-list li > span:not(.latest):hover {
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+}
+.move-list .latest {
+  /* The move on the board: clearly lit up. */
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-weight: 650;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+.move-list.empty::before {
+  content: "No moves yet";
+  color: var(--muted);
+  margin-left: -32px;
+}
+
 /* ---- settings ---- */
 
+/* Slightly see-through, with a light backdrop, so the board stays visible while
+   changing settings (e.g. trying piece sets). */
 dialog {
-  background: var(--panel);
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -544,20 +1207,7 @@ dialog {
   width: min(440px, calc(100vw - 32px));
 }
 dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
-}
-/* Editing square colors: sit over the side panel, no dimming (positions set in main.ts). */
-dialog.docked {
-  position: fixed;
-  margin: 0;
-  left: var(--dock-left);
-  top: var(--dock-top);
-  width: var(--dock-width);
-  max-height: var(--dock-height);
-  overflow-y: auto;
-}
-dialog.docked::backdrop {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.2);
 }
 dialog header {
   display: flex;
@@ -594,45 +1244,64 @@ dialog .rows label:has(input[type="range"]) {
   flex-wrap: wrap;
   gap: 10px;
 }
-.theme-swatch {
-  width: 46px;
-  height: 46px;
-  border-radius: 8px;
-  border: 3px solid transparent;
-  cursor: pointer;
-  background-size: 100% 100%;
-}
-.theme-swatch[aria-pressed="true"] {
-  border-color: var(--accent);
-}
-
-.color-pickers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  margin-top: 12px;
-}
-.color-pickers label {
-  display: flex;
-  align-items: center;
+/* Hundreds of piece sets: a scrolling grid about three rows tall. */
+.piece-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
   gap: 8px;
-  font-size: 14px;
-  cursor: pointer;
+  max-height: 236px; /* about three rows, the next one peeking */
+  overflow-y: auto;
+  padding: 2px;
+  overscroll-behavior: contain;
 }
-.color-pickers input[type="color"] {
-  width: 34px;
-  height: 26px;
+.h3-detail {
+  margin-left: 6px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.75;
+}
+/* Piece set tiles: the black knight behind (up-right), the white one in front (down-left).
+   .swatches raises specificity above `dialog button:not(.icon-btn)`. */
+.swatches .piece-swatch {
+  position: relative;
+  aspect-ratio: 1;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+  border: 2px solid transparent;
   background: none;
   cursor: pointer;
 }
+.swatches .piece-swatch:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.swatches .piece-swatch[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+.piece-swatch span {
+  position: absolute;
+  width: 64%;
+  height: 64%;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+.piece-swatch .ps-back {
+  top: 8%;
+  right: 8%;
+}
+.piece-swatch .ps-front {
+  bottom: 8%;
+  left: 8%;
+}
+
 
 
 /* ================================================================
-   Arcade style (.board.arcade). Classic never sees any of this:
-   it draws pieces on .piece itself and keeps .pi hidden.
+   Arcade effects (.board.arcade; off when animation is Off). Without them the
+   board draws pieces on .piece itself and keeps .pi hidden.
    ================================================================ */
 
 .pi {
@@ -657,24 +1326,21 @@ dialog .rows label:has(input[type="range"]) {
     filter 140ms ease-out;
 }
 
-/* Lift: a picked-up piece rises off the board and casts a shadow. */
-.board.arcade .piece.lifted {
-  z-index: 4;
-}
-.board.arcade .piece.lifted .pi {
-  scale: 1.14;
-  translate: 0 -6%;
-  filter: drop-shadow(0 10px 6px rgba(0, 0, 0, 0.35));
-}
+/* A held piece (Fancy: rises off the board). Once released, e.g. selected by a click, it's back to normal. */
 .board.arcade .piece.dragging {
-  scale: none;
+  --held-scale: 1; /* the inner .pi carries the effect (lift and growth in Fancy) */
   filter: none;
 }
+/* Normal: a held piece stays flat with a soft shadow, like Off. */
 .board.arcade .piece.dragging .pi {
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.35));
+  transition: none;
+}
+/* Fancy: it lifts off the board, grows and casts a deeper shadow. */
+.board.fancy .piece.dragging .pi {
   scale: 1.18;
   translate: 0 -8%;
   filter: drop-shadow(0 16px 8px rgba(0, 0, 0, 0.32));
-  transition: none;
 }
 
 /* Arc: pieces rise mid-flight; knights hop higher with a little tilt. */
@@ -748,8 +1414,10 @@ dialog .rows label:has(input[type="range"]) {
 
 /* Crumble: on checkmate every tile but the king's falls away (--d, --fx, --fy, --fr). */
 .board.arcade.crumbling {
-  overflow: visible;
   box-shadow: none;
+}
+.board.arcade.crumbling .board-squares {
+  overflow: visible; /* tiles fall past the edge */
 }
 .board.arcade.crumbling .board-highlights,
 .board.arcade.crumbling .board-glow,
@@ -788,10 +1456,20 @@ dialog .rows label:has(input[type="range"]) {
     height: auto;
     padding: 16px;
   }
+  .board-column {
+    width: 100%;
+  }
   .board-area {
     width: 100%;
     height: auto;
     container-type: inline-size;
+  }
+  .board-row .board-area {
+    flex: 1;
+    min-width: 0;
+  }
+  .eval-bar {
+    height: auto; /* stretches to the board's height */
   }
   .panel {
     width: 100%;
@@ -800,4 +1478,225 @@ dialog .rows label:has(input[type="range"]) {
   .panel-footer {
     margin-top: 0;
   }
+}
+
+/* ---- game over popup ---- */
+
+dialog.game-over {
+  background: var(--panel);
+  width: min(320px, calc(100vw - 32px));
+  padding: 22px 22px 18px;
+  text-align: center;
+  border-top: 4px solid var(--muted);
+  animation: over-in 220ms ease-out;
+}
+dialog.game-over.won {
+  border-top-color: var(--good);
+}
+dialog.game-over.lost {
+  border-top-color: var(--bad);
+}
+@keyframes over-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+.game-over-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+.game-over-detail {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 6px 0 4px;
+}
+.game-over-accuracy {
+  font-size: 15px;
+  font-weight: 650;
+  margin-bottom: 18px;
+}
+
+/* ---- stats ---- */
+
+.panel-footer {
+  gap: 4px;
+}
+.actions .wide {
+  grid-column: 1 / -1;
+}
+.actions button[hidden] {
+  display: none;
+}
+dialog.stats-dialog {
+  background: var(--panel); /* solid: lots of text, nothing to see behind it */
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(84vh, 900px);
+  overflow-y: auto;
+}
+dialog.stats-dialog header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  margin: 0 -22px;
+  padding: 0 22px;
+}
+.seg-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.stats-view {
+  position: sticky;
+  top: 52px; /* under the sticky header */
+  z-index: 1;
+  background: var(--panel);
+  margin: 0 -22px 4px;
+  padding: 2px 22px 8px;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+.stat {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+.stat-row-label {
+  min-width: 150px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.stat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 4px;
+  border-radius: 999px;
+  background: var(--card);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.stat-piece {
+  width: 24px;
+  height: 24px;
+  background-size: 100% 100%;
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.6)); /* black pieces on the dark chip */
+}
+.stat-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.stat-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--card);
+}
+.stat-empty {
+  color: var(--muted);
+  font-size: 14px;
+}
+.past-games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.past-game {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--card);
+  border-left: 3px solid var(--muted);
+  cursor: pointer;
+}
+.past-game:hover,
+.past-game:focus-visible {
+  background: color-mix(in srgb, var(--card) 80%, #fff);
+}
+.past-game.won {
+  border-left-color: var(--good);
+}
+.past-game.lost {
+  border-left-color: var(--bad);
+}
+.past-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.past-result {
+  font-weight: 600;
+  font-size: 14px;
+}
+.past-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Past games: moving games between devices with codes. */
+.games-help {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+.games-transfer {
+  display: grid;
+  gap: 8px;
+}
+.games-transfer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.games-transfer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.past-game .copy-code {
+  flex: none;
+  opacity: 0.6;
+}
+.past-game .copy-code:hover {
+  opacity: 1;
 }

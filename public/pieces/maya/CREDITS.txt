@@ -1,0 +1,7 @@
+Maya piece set
+
+Author: Armando Hernandez Marroquin
+License: "freeware"
+Source: https://sharechess.github.io
+
+Files renamed from pw.svg/kb.svg/... to wP.svg/bK.svg/...; via https://github.com/sharechess/sharechess (public/pieces/maya).

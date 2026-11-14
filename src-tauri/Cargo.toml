@@ -1,7 +1,7 @@
 [package]
 name = "stalemate"
-version = "0.1.0"
-description = "Offline chess puzzles"
+version = "0.1.1"
+description = "Offline chess puzzles and a chess bot"
 authors = ["Stalemate"]
 edition = "2024"
 
@@ -31,3 +31,8 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# The engine is far too slow unoptimized; in `tauri dev` it would search much
+# shallower (weaker bot, rougher move grading) than in a release build.
+[profile.dev]
+opt-level = 3
